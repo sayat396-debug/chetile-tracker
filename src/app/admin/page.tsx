@@ -13,9 +13,18 @@ type Group = {
   created_at: string | null;
 };
 
+type Member = {
+  id: string;
+  group_id: string;
+  name: string;
+  display_order: number | null;
+  is_active: boolean | null;
+};
+
 export default function AdminPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,10 +33,15 @@ export default function AdminPage() {
   const [newGroupSlug, setNewGroupSlug] = useState("");
   const [newGroupWeekStartDay, setNewGroupWeekStartDay] = useState("6");
 
+  const [selectedGroupId, setSelectedGroupId] = useState("");
+  const [newMemberName, setNewMemberName] = useState("");
+
   const [isLoading, setIsLoading] = useState(true);
   const [isGroupsLoading, setIsGroupsLoading] = useState(false);
+  const [isMembersLoading, setIsMembersLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [isAddingMember, setIsAddingMember] = useState(false);
 
   const [message, setMessage] = useState("");
 
@@ -73,11 +87,44 @@ export default function AdminPage() {
         return;
       }
 
-      setGroups(data || []);
+      const loadedGroups = data || [];
+      setGroups(loadedGroups);
+
+      if (!selectedGroupId && loadedGroups.length > 0) {
+        setSelectedGroupId(loadedGroups[0].id);
+      }
     }
 
     loadGroups();
-  }, [session]);
+  }, [session, selectedGroupId]);
+
+  useEffect(() => {
+    async function loadMembers() {
+      if (!selectedGroupId) {
+        setMembers([]);
+        return;
+      }
+
+      setIsMembersLoading(true);
+
+      const { data, error } = await supabase
+        .from("group_members")
+        .select("id, group_id, name, display_order, is_active")
+        .eq("group_id", selectedGroupId)
+        .order("display_order", { ascending: true });
+
+      setIsMembersLoading(false);
+
+      if (error) {
+        setMessage("Не удалось загрузить участников.");
+        return;
+      }
+
+      setMembers(data || []);
+    }
+
+    loadMembers();
+  }, [selectedGroupId]);
 
   function makeSlugFromName(name: string) {
     return name
@@ -118,7 +165,27 @@ export default function AdminPage() {
       return;
     }
 
-    setGroups(data || []);
+    const loadedGroups = data || [];
+    setGroups(loadedGroups);
+
+    if (loadedGroups.length > 0) {
+      setSelectedGroupId(loadedGroups[0].id);
+    }
+  }
+
+  async function loadMembersAgain(groupId: string) {
+    const { data, error } = await supabase
+      .from("group_members")
+      .select("id, group_id, name, display_order, is_active")
+      .eq("group_id", groupId)
+      .order("display_order", { ascending: true });
+
+    if (error) {
+      setMessage("Участник добавлен, но список участников не обновился.");
+      return;
+    }
+
+    setMembers(data || []);
   }
 
   async function handleCreateGroup() {
@@ -171,6 +238,58 @@ export default function AdminPage() {
     setIsCreatingGroup(false);
   }
 
+  async function handleAddMember() {
+    const cleanName = newMemberName.trim();
+
+    if (!selectedGroupId) {
+      setMessage("Сначала выберите группу.");
+      return;
+    }
+
+    if (!cleanName) {
+      setMessage("Введите имя участника.");
+      return;
+    }
+
+    const nextDisplayOrder = members.length + 1;
+
+    setIsAddingMember(true);
+    setMessage("");
+
+    const { error } = await supabase.from("group_members").insert({
+      group_id: selectedGroupId,
+      name: cleanName,
+      display_order: nextDisplayOrder,
+      is_active: true,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setIsAddingMember(false);
+      return;
+    }
+
+    setNewMemberName("");
+    await loadMembersAgain(selectedGroupId);
+
+    setMessage("Участник добавлен.");
+    setIsAddingMember(false);
+  }
+
+  async function handleToggleMemberActive(member: Member) {
+    const { error } = await supabase
+      .from("group_members")
+      .update({ is_active: !member.is_active })
+      .eq("id", member.id);
+
+    if (error) {
+      setMessage("Не удалось изменить статус участника.");
+      return;
+    }
+
+    await loadMembersAgain(member.group_id);
+  }
+
   async function handleSignUp() {
     setIsSubmitting(true);
     setMessage("");
@@ -214,6 +333,7 @@ export default function AdminPage() {
   async function handleSignOut() {
     await supabase.auth.signOut();
     setGroups([]);
+    setMembers([]);
     setMessage("Ты вышел из админ-панели.");
   }
 
@@ -228,6 +348,8 @@ export default function AdminPage() {
 
     return "Не указано";
   }
+
+  const selectedGroup = groups.find((group) => group.id === selectedGroupId);
 
   if (isLoading) {
     return (
@@ -351,7 +473,11 @@ export default function AdminPage() {
                 {groups.map((group) => (
                   <div
                     key={group.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                    className={`rounded-2xl border p-4 ${
+                      selectedGroupId === group.id
+                        ? "border-slate-900 bg-slate-50"
+                        : "border-slate-200 bg-slate-50"
+                    }`}
                   >
                     <p className="font-semibold text-slate-900">
                       {group.name}
@@ -366,17 +492,96 @@ export default function AdminPage() {
                       {getWeekStartDayLabel(group.week_start_day)}
                     </p>
 
-                    <Link
-                      href={`/g/${group.slug}`}
-                      className="mt-4 block w-full rounded-xl bg-slate-900 px-4 py-3 text-center text-base font-semibold text-white transition hover:bg-slate-700"
-                    >
-                      Открыть группу
-                    </Link>
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => setSelectedGroupId(group.id)}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+                      >
+                        Настроить
+                      </button>
+
+                      <Link
+                        href={`/g/${group.slug}`}
+                        className="rounded-xl bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white transition hover:bg-slate-700"
+                      >
+                        Открыть
+                      </Link>
+                    </div>
                   </div>
                 ))}
               </div>
             )}
           </div>
+
+          {selectedGroup && (
+            <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
+              <h2 className="mb-1 text-xl font-bold text-slate-900">
+                Участники
+              </h2>
+
+              <p className="mb-4 text-sm text-slate-600">
+                Группа: {selectedGroup.name}
+              </p>
+
+              <div className="mb-4 flex gap-2">
+                <input
+                  value={newMemberName}
+                  onChange={(event) => setNewMemberName(event.target.value)}
+                  placeholder="Имя участника"
+                  className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
+                />
+
+                <button
+                  onClick={handleAddMember}
+                  disabled={isAddingMember}
+                  className="rounded-xl bg-slate-900 px-4 py-3 text-base font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                >
+                  {isAddingMember ? "..." : "+"}
+                </button>
+              </div>
+
+              {isMembersLoading && (
+                <p className="text-sm text-slate-500">
+                  Загружаем участников...
+                </p>
+              )}
+
+              {!isMembersLoading && members.length === 0 && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm text-slate-600">
+                    В этой группе пока нет участников.
+                  </p>
+                </div>
+              )}
+
+              {!isMembersLoading && members.length > 0 && (
+                <div className="space-y-2">
+                  {members.map((member) => (
+                    <div
+                      key={member.id}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"
+                    >
+                      <div>
+                        <p className="font-semibold text-slate-900">
+                          {member.name}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {member.is_active ? "Активен" : "Отключён"}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => handleToggleMemberActive(member)}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                      >
+                        {member.is_active ? "Отключить" : "Включить"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {message && (
             <p className="mb-4 rounded-xl bg-slate-100 p-3 text-sm font-medium text-slate-700">
