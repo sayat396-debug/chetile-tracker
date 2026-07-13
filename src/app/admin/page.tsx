@@ -20,9 +20,14 @@ export default function AdminPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupSlug, setNewGroupSlug] = useState("");
+  const [newGroupWeekStartDay, setNewGroupWeekStartDay] = useState("6");
+
   const [isLoading, setIsLoading] = useState(true);
   const [isGroupsLoading, setIsGroupsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCreatingGroup, setIsCreatingGroup] = useState(false);
 
   const [message, setMessage] = useState("");
 
@@ -73,6 +78,98 @@ export default function AdminPage() {
 
     loadGroups();
   }, [session]);
+
+  function makeSlugFromName(name: string) {
+    return name
+      .toLowerCase()
+      .trim()
+      .replaceAll(" ", "-")
+      .replace(/[^a-z0-9а-яё-]/gi, "")
+      .replaceAll("ё", "е");
+  }
+
+  function handleNewGroupNameChange(value: string) {
+    setNewGroupName(value);
+
+    if (!newGroupSlug) {
+      setNewGroupSlug(makeSlugFromName(value));
+    }
+  }
+
+  async function ensureProfileExists(currentSession: Session) {
+    const { error } = await supabase.from("profiles").upsert({
+      id: currentSession.user.id,
+      full_name: currentSession.user.email,
+    });
+
+    if (error) {
+      throw error;
+    }
+  }
+
+  async function loadGroupsAgain() {
+    const { data, error } = await supabase
+      .from("groups")
+      .select("id, name, slug, week_start_day, created_at")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      setMessage("Группа создана, но список групп не обновился.");
+      return;
+    }
+
+    setGroups(data || []);
+  }
+
+  async function handleCreateGroup() {
+    if (!session) return;
+
+    const cleanName = newGroupName.trim();
+    const cleanSlug = newGroupSlug.trim().toLowerCase();
+
+    if (!cleanName) {
+      setMessage("Введите название группы.");
+      return;
+    }
+
+    if (!cleanSlug) {
+      setMessage("Введите slug группы.");
+      return;
+    }
+
+    setIsCreatingGroup(true);
+    setMessage("");
+
+    try {
+      await ensureProfileExists(session);
+
+      const { error } = await supabase.from("groups").insert({
+        owner_id: session.user.id,
+        name: cleanName,
+        slug: cleanSlug,
+        week_start_day: Number(newGroupWeekStartDay),
+      });
+
+      if (error) {
+        setMessage(error.message);
+        setIsCreatingGroup(false);
+        return;
+      }
+
+      setNewGroupName("");
+      setNewGroupSlug("");
+      setNewGroupWeekStartDay("6");
+
+      await loadGroupsAgain();
+
+      setMessage("Группа создана.");
+    } catch (error) {
+      console.error(error);
+      setMessage("Не удалось создать группу. Проверь profiles и RLS policies.");
+    }
+
+    setIsCreatingGroup(false);
+  }
 
   async function handleSignUp() {
     setIsSubmitting(true);
@@ -159,6 +256,76 @@ export default function AdminPage() {
             <p className="mt-1 font-semibold">{session.user.email}</p>
           </div>
 
+          <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
+            <h2 className="mb-3 text-xl font-bold text-slate-900">
+              Создать группу
+            </h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Название группы
+                </label>
+
+                <input
+                  value={newGroupName}
+                  onChange={(event) =>
+                    handleNewGroupNameChange(event.target.value)
+                  }
+                  placeholder="Например: Четиле 2"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-lg outline-none focus:border-slate-900"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Slug для ссылки
+                </label>
+
+                <input
+                  value={newGroupSlug}
+                  onChange={(event) => setNewGroupSlug(event.target.value)}
+                  placeholder="Например: chetile-2"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-lg outline-none focus:border-slate-900"
+                />
+
+                <p className="mt-1 text-xs text-slate-500">
+                  Ссылка будет такой: /g/{newGroupSlug || "slug"}
+                </p>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Начало недели
+                </label>
+
+                <select
+                  value={newGroupWeekStartDay}
+                  onChange={(event) =>
+                    setNewGroupWeekStartDay(event.target.value)
+                  }
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-lg outline-none focus:border-slate-900"
+                >
+                  <option value="1">Понедельник</option>
+                  <option value="2">Вторник</option>
+                  <option value="3">Среда</option>
+                  <option value="4">Четверг</option>
+                  <option value="5">Пятница</option>
+                  <option value="6">Суббота</option>
+                  <option value="0">Воскресенье</option>
+                </select>
+              </div>
+
+              <button
+                onClick={handleCreateGroup}
+                disabled={isCreatingGroup}
+                className="w-full rounded-xl bg-slate-900 px-4 py-3 text-lg font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+              >
+                {isCreatingGroup ? "Создаём..." : "Создать группу"}
+              </button>
+            </div>
+          </div>
+
           <div className="mb-6">
             <h2 className="mb-3 text-xl font-bold text-slate-900">
               Мои группы
@@ -174,7 +341,7 @@ export default function AdminPage() {
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="font-semibold text-slate-900">Групп пока нет</p>
                 <p className="mt-1 text-sm text-slate-600">
-                  Позже здесь будет кнопка создания новой группы.
+                  Создай первую группу выше.
                 </p>
               </div>
             )}
@@ -186,22 +353,18 @@ export default function AdminPage() {
                     key={group.id}
                     className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-semibold text-slate-900">
-                          {group.name}
-                        </p>
+                    <p className="font-semibold text-slate-900">
+                      {group.name}
+                    </p>
 
-                        <p className="mt-1 text-sm text-slate-600">
-                          Ссылка: /g/{group.slug}
-                        </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Ссылка: /g/{group.slug}
+                    </p>
 
-                        <p className="mt-1 text-sm text-slate-600">
-                          Начало недели:{" "}
-                          {getWeekStartDayLabel(group.week_start_day)}
-                        </p>
-                      </div>
-                    </div>
+                    <p className="mt-1 text-sm text-slate-600">
+                      Начало недели:{" "}
+                      {getWeekStartDayLabel(group.week_start_day)}
+                    </p>
 
                     <Link
                       href={`/g/${group.slug}`}
@@ -213,18 +376,6 @@ export default function AdminPage() {
                 ))}
               </div>
             )}
-          </div>
-
-          <div className="mb-6 space-y-3">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <p className="font-semibold text-slate-900">
-                Следующий этап
-              </p>
-              <p className="mt-1 text-sm text-slate-600">
-                Позже здесь появятся кнопки: создать группу, добавить
-                участников, добавить задачи и изменить нормы.
-              </p>
-            </div>
           </div>
 
           {message && (
@@ -263,8 +414,8 @@ export default function AdminPage() {
         </h1>
 
         <p className="mb-6 text-slate-600">
-          Зарегистрируйся или войди, чтобы позже управлять группами,
-          участниками и задачами.
+          Зарегистрируйся или войди, чтобы управлять группами, участниками и
+          задачами.
         </p>
 
         <div className="space-y-4">
