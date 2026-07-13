@@ -117,9 +117,10 @@ function convertEntriesRowsToState(rows: EntryRow[]) {
   return result;
 }
 
-export default function HomePage() {
+export default function GroupPage() {
   const params = useParams();
   const groupSlug = String(params.slug);
+
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -138,6 +139,8 @@ export default function HomePage() {
 
   const [entries, setEntries] = useState<Entries>({});
   const [formValues, setFormValues] = useState<EntryValues>({});
+
+  const selectedMemberStorageKey = `selected-member-${groupSlug}`;
 
   const weekOptions = useMemo(() => {
     return getWeekOptions(group?.week_start_day ?? 6, 12);
@@ -205,6 +208,19 @@ export default function HomePage() {
 
       setMembers(membersData);
 
+      const savedMemberId = localStorage.getItem(selectedMemberStorageKey);
+
+      if (savedMemberId) {
+        const savedMember = membersData.find(
+          (member) => member.id === savedMemberId
+        );
+
+        if (savedMember) {
+          setSelectedMember(savedMember);
+          setSelectedTab("mark");
+        }
+      }
+
       const { data: tasksData, error: tasksError } = await supabase
         .from("tasks")
         .select("id, name, unit, weekly_goal, display_order")
@@ -224,7 +240,7 @@ export default function HomePage() {
     }
 
     loadBaseDataFromSupabase();
-  }, []);
+  }, [groupSlug, selectedMemberStorageKey]);
 
   useEffect(() => {
     async function loadEntriesForSelectedWeek() {
@@ -268,6 +284,7 @@ export default function HomePage() {
   function handleSelectMember(member: Member) {
     setSelectedMember(member);
     setSelectedTab("mark");
+    localStorage.setItem(selectedMemberStorageKey, member.id);
   }
 
   function handleBackToMembers() {
@@ -275,6 +292,7 @@ export default function HomePage() {
     setSelectedTab("mark");
     setFormValues({});
     setSaveMessage("");
+    localStorage.removeItem(selectedMemberStorageKey);
   }
 
   function handleWeekChange(newWeekStartDate: string) {
@@ -415,7 +433,8 @@ export default function HomePage() {
           <h1 className="mb-2 text-xl font-bold text-red-700">Ошибка</h1>
           <p className="text-slate-700">{errorMessage}</p>
           <p className="mt-4 text-sm text-slate-500">
-            Проверь .env.local, RLS policies и данные группы chetile в Supabase.
+            Проверь .env.local, RLS policies и данные группы {groupSlug} в
+            Supabase.
           </p>
         </div>
       </main>
@@ -431,7 +450,7 @@ export default function HomePage() {
           </p>
 
           <h1 className="mb-2 text-2xl font-bold text-slate-900">
-            Недельный трекер {group?.name || "Четиле"}
+            Недельный трекер {group?.name || groupSlug}
           </h1>
 
           <p className="mb-6 text-slate-600">
@@ -476,7 +495,7 @@ export default function HomePage() {
         </p>
 
         <h1 className="mb-1 text-2xl font-bold text-slate-900">
-          Недельный трекер {group?.name || "Четиле"}
+          Недельный трекер {group?.name || groupSlug}
         </h1>
 
         <p className="mb-4 text-sm font-medium text-slate-500">{weekTitle}</p>
