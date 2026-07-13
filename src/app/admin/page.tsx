@@ -5,12 +5,23 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 
+type Group = {
+  id: string;
+  name: string;
+  slug: string;
+  week_start_day: number;
+  created_at: string | null;
+};
+
 export default function AdminPage() {
   const [session, setSession] = useState<Session | null>(null);
+  const [groups, setGroups] = useState<Group[]>([]);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isGroupsLoading, setIsGroupsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [message, setMessage] = useState("");
@@ -35,6 +46,33 @@ export default function AdminPage() {
       subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    async function loadGroups() {
+      if (!session) {
+        setGroups([]);
+        return;
+      }
+
+      setIsGroupsLoading(true);
+
+      const { data, error } = await supabase
+        .from("groups")
+        .select("id, name, slug, week_start_day, created_at")
+        .order("created_at", { ascending: false });
+
+      setIsGroupsLoading(false);
+
+      if (error) {
+        setMessage("Не удалось загрузить группы.");
+        return;
+      }
+
+      setGroups(data || []);
+    }
+
+    loadGroups();
+  }, [session]);
 
   async function handleSignUp() {
     setIsSubmitting(true);
@@ -78,7 +116,20 @@ export default function AdminPage() {
 
   async function handleSignOut() {
     await supabase.auth.signOut();
+    setGroups([]);
     setMessage("Ты вышел из админ-панели.");
+  }
+
+  function getWeekStartDayLabel(day: number) {
+    if (day === 0) return "Воскресенье";
+    if (day === 1) return "Понедельник";
+    if (day === 2) return "Вторник";
+    if (day === 3) return "Среда";
+    if (day === 4) return "Четверг";
+    if (day === 5) return "Пятница";
+    if (day === 6) return "Суббота";
+
+    return "Не указано";
   }
 
   if (isLoading) {
@@ -103,47 +154,88 @@ export default function AdminPage() {
             Панель администратора
           </h1>
 
-          <p className="mb-4 text-slate-600">
-            Ты вошёл как:
-          </p>
-
           <div className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-4 text-green-900">
-            <p className="font-semibold">{session.user.email}</p>
-            <p className="mt-1 text-sm">Авторизация работает.</p>
+            <p className="text-sm">Ты вошёл как:</p>
+            <p className="mt-1 font-semibold">{session.user.email}</p>
           </div>
 
-          <div className="space-y-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="font-semibold text-slate-900">Группы</p>
-              <p className="mt-1 text-sm text-slate-600">
-                Позже здесь появится список твоих групп.
-              </p>
-            </div>
+          <div className="mb-6">
+            <h2 className="mb-3 text-xl font-bold text-slate-900">
+              Мои группы
+            </h2>
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="font-semibold text-slate-900">Участники</p>
-              <p className="mt-1 text-sm text-slate-600">
-                Здесь будет управление участниками группы.
-              </p>
-            </div>
+            {isGroupsLoading && (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm text-slate-600">Загружаем группы...</p>
+              </div>
+            )}
 
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <p className="font-semibold text-slate-900">Задачи и нормы</p>
+            {!isGroupsLoading && groups.length === 0 && (
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="font-semibold text-slate-900">Групп пока нет</p>
+                <p className="mt-1 text-sm text-slate-600">
+                  Позже здесь будет кнопка создания новой группы.
+                </p>
+              </div>
+            )}
+
+            {!isGroupsLoading && groups.length > 0 && (
+              <div className="space-y-3">
+                {groups.map((group) => (
+                  <div
+                    key={group.id}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-slate-900">
+                          {group.name}
+                        </p>
+
+                        <p className="mt-1 text-sm text-slate-600">
+                          Ссылка: /g/{group.slug}
+                        </p>
+
+                        <p className="mt-1 text-sm text-slate-600">
+                          Начало недели:{" "}
+                          {getWeekStartDayLabel(group.week_start_day)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <Link
+                      href={`/g/${group.slug}`}
+                      className="mt-4 block w-full rounded-xl bg-slate-900 px-4 py-3 text-center text-base font-semibold text-white transition hover:bg-slate-700"
+                    >
+                      Открыть группу
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="mb-6 space-y-3">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="font-semibold text-slate-900">
+                Следующий этап
+              </p>
               <p className="mt-1 text-sm text-slate-600">
-                Здесь будет настройка задач, единиц измерения и недельных норм.
+                Позже здесь появятся кнопки: создать группу, добавить
+                участников, добавить задачи и изменить нормы.
               </p>
             </div>
           </div>
 
           {message && (
-            <p className="mt-4 text-center text-sm font-medium text-slate-600">
+            <p className="mb-4 rounded-xl bg-slate-100 p-3 text-sm font-medium text-slate-700">
               {message}
             </p>
           )}
 
           <button
             onClick={handleSignOut}
-            className="mt-6 w-full rounded-xl bg-red-600 px-4 py-3 text-lg font-semibold text-white transition hover:bg-red-700"
+            className="w-full rounded-xl bg-red-600 px-4 py-3 text-lg font-semibold text-white transition hover:bg-red-700"
           >
             Выйти
           </button>
