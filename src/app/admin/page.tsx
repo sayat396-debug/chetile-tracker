@@ -21,10 +21,22 @@ type Member = {
   is_active: boolean | null;
 };
 
+type Task = {
+  id: string;
+  group_id: string;
+  name: string;
+  unit: string | null;
+  weekly_goal: number;
+  display_order: number | null;
+  is_active: boolean | null;
+};
+
 export default function AdminPage() {
   const [session, setSession] = useState<Session | null>(null);
+
   const [groups, setGroups] = useState<Group[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,16 +46,26 @@ export default function AdminPage() {
   const [newGroupWeekStartDay, setNewGroupWeekStartDay] = useState("6");
 
   const [selectedGroupId, setSelectedGroupId] = useState("");
+
   const [newMemberName, setNewMemberName] = useState("");
+
+  const [newTaskName, setNewTaskName] = useState("");
+  const [newTaskUnit, setNewTaskUnit] = useState("");
+  const [newTaskWeeklyGoal, setNewTaskWeeklyGoal] = useState("");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isGroupsLoading, setIsGroupsLoading] = useState(false);
   const [isMembersLoading, setIsMembersLoading] = useState(false);
+  const [isTasksLoading, setIsTasksLoading] = useState(false);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [isAddingMember, setIsAddingMember] = useState(false);
+  const [isAddingTask, setIsAddingTask] = useState(false);
 
   const [message, setMessage] = useState("");
+
+  const selectedGroup = groups.find((group) => group.id === selectedGroupId);
 
   useEffect(() => {
     async function loadSession() {
@@ -90,24 +112,26 @@ export default function AdminPage() {
       const loadedGroups = data || [];
       setGroups(loadedGroups);
 
-      if (!selectedGroupId && loadedGroups.length > 0) {
-        setSelectedGroupId(loadedGroups[0].id);
+      if (loadedGroups.length > 0) {
+        setSelectedGroupId((current) => current || loadedGroups[0].id);
       }
     }
 
     loadGroups();
-  }, [session, selectedGroupId]);
+  }, [session]);
 
   useEffect(() => {
-    async function loadMembers() {
+    async function loadMembersAndTasks() {
       if (!selectedGroupId) {
         setMembers([]);
+        setTasks([]);
         return;
       }
 
       setIsMembersLoading(true);
+      setIsTasksLoading(true);
 
-      const { data, error } = await supabase
+      const { data: membersData, error: membersError } = await supabase
         .from("group_members")
         .select("id, group_id, name, display_order, is_active")
         .eq("group_id", selectedGroupId)
@@ -115,15 +139,28 @@ export default function AdminPage() {
 
       setIsMembersLoading(false);
 
-      if (error) {
+      if (membersError) {
         setMessage("Не удалось загрузить участников.");
-        return;
+      } else {
+        setMembers(membersData || []);
       }
 
-      setMembers(data || []);
+      const { data: tasksData, error: tasksError } = await supabase
+        .from("tasks")
+        .select("id, group_id, name, unit, weekly_goal, display_order, is_active")
+        .eq("group_id", selectedGroupId)
+        .order("display_order", { ascending: true });
+
+      setIsTasksLoading(false);
+
+      if (tasksError) {
+        setMessage("Не удалось загрузить задачи.");
+      } else {
+        setTasks(tasksData || []);
+      }
     }
 
-    loadMembers();
+    loadMembersAndTasks();
   }, [selectedGroupId]);
 
   function makeSlugFromName(name: string) {
@@ -186,6 +223,21 @@ export default function AdminPage() {
     }
 
     setMembers(data || []);
+  }
+
+  async function loadTasksAgain(groupId: string) {
+    const { data, error } = await supabase
+      .from("tasks")
+      .select("id, group_id, name, unit, weekly_goal, display_order, is_active")
+      .eq("group_id", groupId)
+      .order("display_order", { ascending: true });
+
+    if (error) {
+      setMessage("Задача добавлена, но список задач не обновился.");
+      return;
+    }
+
+    setTasks(data || []);
   }
 
   async function handleCreateGroup() {
@@ -290,6 +342,75 @@ export default function AdminPage() {
     await loadMembersAgain(member.group_id);
   }
 
+  async function handleAddTask() {
+    const cleanName = newTaskName.trim();
+    const cleanUnit = newTaskUnit.trim();
+    const cleanWeeklyGoal = Number(newTaskWeeklyGoal);
+
+    if (!selectedGroupId) {
+      setMessage("Сначала выберите группу.");
+      return;
+    }
+
+    if (!cleanName) {
+      setMessage("Введите название задачи.");
+      return;
+    }
+
+    if (!newTaskWeeklyGoal || Number.isNaN(cleanWeeklyGoal)) {
+      setMessage("Введите недельную норму числом.");
+      return;
+    }
+
+    if (cleanWeeklyGoal < 0) {
+      setMessage("Недельная норма не может быть меньше 0.");
+      return;
+    }
+
+    const nextDisplayOrder = tasks.length + 1;
+
+    setIsAddingTask(true);
+    setMessage("");
+
+    const { error } = await supabase.from("tasks").insert({
+      group_id: selectedGroupId,
+      name: cleanName,
+      unit: cleanUnit || null,
+      weekly_goal: cleanWeeklyGoal,
+      display_order: nextDisplayOrder,
+      is_active: true,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setIsAddingTask(false);
+      return;
+    }
+
+    setNewTaskName("");
+    setNewTaskUnit("");
+    setNewTaskWeeklyGoal("");
+
+    await loadTasksAgain(selectedGroupId);
+
+    setMessage("Задача добавлена.");
+    setIsAddingTask(false);
+  }
+
+  async function handleToggleTaskActive(task: Task) {
+    const { error } = await supabase
+      .from("tasks")
+      .update({ is_active: !task.is_active })
+      .eq("id", task.id);
+
+    if (error) {
+      setMessage("Не удалось изменить статус задачи.");
+      return;
+    }
+
+    await loadTasksAgain(task.group_id);
+  }
+
   async function handleSignUp() {
     setIsSubmitting(true);
     setMessage("");
@@ -334,6 +455,7 @@ export default function AdminPage() {
     await supabase.auth.signOut();
     setGroups([]);
     setMembers([]);
+    setTasks([]);
     setMessage("Ты вышел из админ-панели.");
   }
 
@@ -348,8 +470,6 @@ export default function AdminPage() {
 
     return "Не указано";
   }
-
-  const selectedGroup = groups.find((group) => group.id === selectedGroupId);
 
   if (isLoading) {
     return (
@@ -575,6 +695,99 @@ export default function AdminPage() {
                         className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
                       >
                         {member.is_active ? "Отключить" : "Включить"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {selectedGroup && (
+            <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
+              <h2 className="mb-1 text-xl font-bold text-slate-900">
+                Задачи и нормы
+              </h2>
+
+              <p className="mb-4 text-sm text-slate-600">
+                Группа: {selectedGroup.name}
+              </p>
+
+              <div className="mb-4 space-y-3">
+                <input
+                  value={newTaskName}
+                  onChange={(event) => setNewTaskName(event.target.value)}
+                  placeholder="Название задачи, например Салават"
+                  className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
+                />
+
+                <div className="grid grid-cols-2 gap-2">
+                  <input
+                    value={newTaskUnit}
+                    onChange={(event) => setNewTaskUnit(event.target.value)}
+                    placeholder="Ед. изм."
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
+                  />
+
+                  <input
+                    type="number"
+                    min="0"
+                    value={newTaskWeeklyGoal}
+                    onChange={(event) =>
+                      setNewTaskWeeklyGoal(event.target.value)
+                    }
+                    placeholder="Норма"
+                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
+                  />
+                </div>
+
+                <button
+                  onClick={handleAddTask}
+                  disabled={isAddingTask}
+                  className="w-full rounded-xl bg-slate-900 px-4 py-3 text-base font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                >
+                  {isAddingTask ? "Добавляем..." : "Добавить задачу"}
+                </button>
+              </div>
+
+              {isTasksLoading && (
+                <p className="text-sm text-slate-500">Загружаем задачи...</p>
+              )}
+
+              {!isTasksLoading && tasks.length === 0 && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm text-slate-600">
+                    В этой группе пока нет задач.
+                  </p>
+                </div>
+              )}
+
+              {!isTasksLoading && tasks.length > 0 && (
+                <div className="space-y-2">
+                  {tasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"
+                    >
+                      <div>
+                        <p className="font-semibold text-slate-900">
+                          {task.name}
+                        </p>
+
+                        <p className="text-xs text-slate-500">
+                          Норма: {task.weekly_goal} {task.unit || ""}
+                        </p>
+
+                        <p className="text-xs text-slate-500">
+                          {task.is_active ? "Активна" : "Отключена"}
+                        </p>
+                      </div>
+
+                      <button
+                        onClick={() => handleToggleTaskActive(task)}
+                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                      >
+                        {task.is_active ? "Отключить" : "Включить"}
                       </button>
                     </div>
                   ))}
