@@ -47,6 +47,10 @@ function toDateKey(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function parseDateKey(dateKey: string) {
+  return new Date(`${dateKey}T12:00:00`);
+}
+
 function formatDisplayDate(date: Date) {
   const day = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -54,14 +58,21 @@ function formatDisplayDate(date: Date) {
   return `${day}.${month}`;
 }
 
-function getCurrentWeekDays(weekStartDay: number) {
+function getCurrentWeekStartDate(weekStartDay: number) {
   const today = new Date();
-  const currentDay = today.getDay();
+  today.setHours(12, 0, 0, 0);
 
+  const currentDay = today.getDay();
   const diff = (currentDay - weekStartDay + 7) % 7;
 
   const weekStart = new Date(today);
   weekStart.setDate(today.getDate() - diff);
+
+  return weekStart;
+}
+
+function getWeekDaysFromStart(weekStartDateKey: string) {
+  const weekStart = parseDateKey(weekStartDateKey);
 
   return Array.from({ length: 7 }, (_, index) => {
     const date = new Date(weekStart);
@@ -71,6 +82,23 @@ function getCurrentWeekDays(weekStartDay: number) {
       label: dayNames[date.getDay()],
       date: toDateKey(date),
       displayDate: formatDisplayDate(date),
+    };
+  });
+}
+
+function getWeekOptions(weekStartDay: number, count = 12) {
+  const currentWeekStart = getCurrentWeekStartDate(weekStartDay);
+
+  return Array.from({ length: count }, (_, index) => {
+    const startDate = new Date(currentWeekStart);
+    startDate.setDate(currentWeekStart.getDate() - index * 7);
+
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 6);
+
+    return {
+      value: toDateKey(startDate),
+      label: `${formatDisplayDate(startDate)}–${formatDisplayDate(endDate)}`,
     };
   });
 }
@@ -96,23 +124,36 @@ export default function HomePage() {
   const [tasks, setTasks] = useState<Task[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isEntriesLoading, setIsEntriesLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
   const [errorMessage, setErrorMessage] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
 
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [selectedWeekStartDate, setSelectedWeekStartDate] = useState("");
   const [selectedDay, setSelectedDay] = useState("");
   const [selectedTab, setSelectedTab] = useState<Tab>("mark");
 
-  // entries — сохранённые данные из Supabase
   const [entries, setEntries] = useState<Entries>({});
-
-  // formValues — временные данные в форме до нажатия "Сохранить"
   const [formValues, setFormValues] = useState<EntryValues>({});
 
-  const days = useMemo(() => {
-    return getCurrentWeekDays(group?.week_start_day ?? 6);
+  const weekOptions = useMemo(() => {
+    return getWeekOptions(group?.week_start_day ?? 6, 12);
   }, [group?.week_start_day]);
+
+  const days = useMemo(() => {
+    if (selectedWeekStartDate) {
+      return getWeekDaysFromStart(selectedWeekStartDate);
+    }
+
+    if (group) {
+      const currentWeekStart = getCurrentWeekStartDate(group.week_start_day);
+      return getWeekDaysFromStart(toDateKey(currentWeekStart));
+    }
+
+    return [];
+  }, [group, selectedWeekStartDate]);
 
   const entryKey =
     selectedMember && selectedDay ? `${selectedMember.id}_${selectedDay}` : "";
@@ -123,7 +164,7 @@ export default function HomePage() {
       : "";
 
   useEffect(() => {
-    async function loadDataFromSupabase() {
+    async function loadBaseDataFromSupabase() {
       setIsLoading(true);
       setErrorMessage("");
 
@@ -141,9 +182,12 @@ export default function HomePage() {
 
       setGroup(groupData);
 
-      const weekDays = getCurrentWeekDays(groupData.week_start_day);
-      const weekStartDate = weekDays[0].date;
-      const weekEndDate = weekDays[6].date;
+      const currentWeekStart = getCurrentWeekStartDate(groupData.week_start_day);
+      const currentWeekStartKey = toDateKey(currentWeekStart);
+      const currentWeekDays = getWeekDaysFromStart(currentWeekStartKey);
+
+      setSelectedWeekStartDate(currentWeekStartKey);
+      setSelectedDay(currentWeekDays[0].date);
 
       const { data: membersData, error: membersError } = await supabase
         .from("group_members")
@@ -175,32 +219,42 @@ export default function HomePage() {
 
       setTasks(tasksData);
 
+      setIsLoading(false);
+    }
+
+    loadBaseDataFromSupabase();
+  }, []);
+
+  useEffect(() => {
+    async function loadEntriesForSelectedWeek() {
+      if (!group || !selectedWeekStartDate) return;
+
+      const weekDays = getWeekDaysFromStart(selectedWeekStartDate);
+      const weekStartDate = weekDays[0].date;
+      const weekEndDate = weekDays[6].date;
+
+      setIsEntriesLoading(true);
+      setErrorMessage("");
+
       const { data: entriesData, error: entriesError } = await supabase
         .from("entries")
         .select("member_id, task_id, entry_date, value")
-        .eq("group_id", groupData.id)
+        .eq("group_id", group.id)
         .gte("entry_date", weekStartDate)
         .lte("entry_date", weekEndDate);
 
       if (entriesError) {
         setErrorMessage("Не удалось загрузить отметки из Supabase.");
-        setIsLoading(false);
+        setIsEntriesLoading(false);
         return;
       }
 
       setEntries(convertEntriesRowsToState(entriesData || []));
-
-      setIsLoading(false);
+      setIsEntriesLoading(false);
     }
 
-    loadDataFromSupabase();
-  }, []);
-
-  useEffect(() => {
-    if (!selectedDay && days.length > 0) {
-      setSelectedDay(days[0].date);
-    }
-  }, [days, selectedDay]);
+    loadEntriesForSelectedWeek();
+  }, [group, selectedWeekStartDate]);
 
   useEffect(() => {
     if (!entryKey) return;
@@ -218,6 +272,16 @@ export default function HomePage() {
   function handleBackToMembers() {
     setSelectedMember(null);
     setSelectedTab("mark");
+    setFormValues({});
+    setSaveMessage("");
+  }
+
+  function handleWeekChange(newWeekStartDate: string) {
+    const newWeekDays = getWeekDaysFromStart(newWeekStartDate);
+
+    setSelectedWeekStartDate(newWeekStartDate);
+    setSelectedDay(newWeekDays[0].date);
+    setEntries({});
     setFormValues({});
     setSaveMessage("");
   }
@@ -416,6 +480,30 @@ export default function HomePage() {
 
         <p className="mb-4 text-sm font-medium text-slate-500">{weekTitle}</p>
 
+        <div className="mb-4">
+          <label className="mb-1 block text-sm font-medium text-slate-700">
+            Выберите неделю
+          </label>
+
+          <select
+            value={selectedWeekStartDate}
+            onChange={(event) => handleWeekChange(event.target.value)}
+            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base text-slate-800 outline-none focus:border-slate-900"
+          >
+            {weekOptions.map((week) => (
+              <option key={week.value} value={week.value}>
+                {week.label}
+              </option>
+            ))}
+          </select>
+
+          {isEntriesLoading && (
+            <p className="mt-2 text-sm text-slate-500">
+              Загружаем отметки за выбранную неделю...
+            </p>
+          )}
+        </div>
+
         <div className="mb-6 grid grid-cols-3 gap-2 rounded-xl bg-slate-100 p-1">
           <button
             onClick={() => setSelectedTab("mark")}
@@ -506,7 +594,7 @@ export default function HomePage() {
 
             <button
               onClick={handleSave}
-              disabled={isSaving}
+              disabled={isSaving || isEntriesLoading}
               className="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 text-lg font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
             >
               {isSaving ? "Сохраняем..." : "Сохранить"}
