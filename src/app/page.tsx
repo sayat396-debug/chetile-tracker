@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 const GROUP_SLUG = "chetile";
-const STORAGE_KEY = "chetile-tracker-v2-demo";
 
 const dayNames = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 
@@ -27,6 +26,13 @@ type Group = {
   name: string;
   slug: string;
   week_start_day: number;
+};
+
+type EntryRow = {
+  member_id: string;
+  task_id: string;
+  entry_date: string;
+  value: number;
 };
 
 type EntryValues = Record<string, string>;
@@ -69,32 +75,52 @@ function getCurrentWeekDays(weekStartDay: number) {
   });
 }
 
+function convertEntriesRowsToState(rows: EntryRow[]) {
+  const result: Entries = {};
+
+  rows.forEach((row) => {
+    const key = `${row.member_id}_${row.entry_date}`;
+
+    result[key] = {
+      ...result[key],
+      [row.task_id]: String(row.value ?? 0),
+    };
+  });
+
+  return result;
+}
+
 export default function HomePage() {
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [saveMessage, setSaveMessage] = useState("");
 
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
   const [selectedDay, setSelectedDay] = useState("");
   const [selectedTab, setSelectedTab] = useState<Tab>("mark");
 
-  // entries — это уже сохранённые данные
+  // entries — сохранённые данные из Supabase
   const [entries, setEntries] = useState<Entries>({});
 
-  // formValues — это временные данные, которые сейчас введены в форму
+  // formValues — временные данные в форме до нажатия "Сохранить"
   const [formValues, setFormValues] = useState<EntryValues>({});
 
   const days = useMemo(() => {
     return getCurrentWeekDays(group?.week_start_day ?? 6);
   }, [group?.week_start_day]);
 
-  const entryKey = selectedMember && selectedDay ? `${selectedMember.id}_${selectedDay}` : "";
+  const entryKey =
+    selectedMember && selectedDay ? `${selectedMember.id}_${selectedDay}` : "";
 
   const weekTitle =
-    days.length > 0 ? `Неделя: ${days[0].displayDate}–${days[6].displayDate}` : "";
+    days.length > 0
+      ? `Неделя: ${days[0].displayDate}–${days[6].displayDate}`
+      : "";
 
   useEffect(() => {
     async function loadDataFromSupabase() {
@@ -114,6 +140,10 @@ export default function HomePage() {
       }
 
       setGroup(groupData);
+
+      const weekDays = getCurrentWeekDays(groupData.week_start_day);
+      const weekStartDate = weekDays[0].date;
+      const weekEndDate = weekDays[6].date;
 
       const { data: membersData, error: membersError } = await supabase
         .from("group_members")
@@ -145,6 +175,21 @@ export default function HomePage() {
 
       setTasks(tasksData);
 
+      const { data: entriesData, error: entriesError } = await supabase
+        .from("entries")
+        .select("member_id, task_id, entry_date, value")
+        .eq("group_id", groupData.id)
+        .gte("entry_date", weekStartDate)
+        .lte("entry_date", weekEndDate);
+
+      if (entriesError) {
+        setErrorMessage("Не удалось загрузить отметки из Supabase.");
+        setIsLoading(false);
+        return;
+      }
+
+      setEntries(convertEntriesRowsToState(entriesData || []));
+
       setIsLoading(false);
     }
 
@@ -158,22 +203,11 @@ export default function HomePage() {
   }, [days, selectedDay]);
 
   useEffect(() => {
-    const savedEntries = localStorage.getItem(STORAGE_KEY);
-
-    if (savedEntries) {
-      try {
-        setEntries(JSON.parse(savedEntries));
-      } catch {
-        setEntries({});
-      }
-    }
-  }, []);
-
-  useEffect(() => {
     if (!entryKey) return;
 
     const savedValuesForCurrentDay = entries[entryKey] || {};
     setFormValues(savedValuesForCurrentDay);
+    setSaveMessage("");
   }, [entryKey, entries]);
 
   function handleSelectMember(member: Member) {
@@ -185,6 +219,7 @@ export default function HomePage() {
     setSelectedMember(null);
     setSelectedTab("mark");
     setFormValues({});
+    setSaveMessage("");
   }
 
   function handleValueChange(taskId: string, value: string) {
@@ -192,10 +227,40 @@ export default function HomePage() {
       ...prev,
       [taskId]: value,
     }));
+
+    setSaveMessage("");
   }
 
-  function handleSave() {
-    if (!selectedMember || !entryKey) return;
+  async function handleSave() {
+    if (!group || !selectedMember || !entryKey || days.length === 0) return;
+
+    setIsSaving(true);
+    setSaveMessage("");
+
+    const weekStartDate = days[0].date;
+    const weekEndDate = days[6].date;
+
+    const rowsToSave = tasks.map((task) => ({
+      group_id: group.id,
+      member_id: selectedMember.id,
+      task_id: task.id,
+      entry_date: selectedDay,
+      week_start_date: weekStartDate,
+      week_end_date: weekEndDate,
+      value: Number(formValues[task.id] || 0),
+      updated_at: new Date().toISOString(),
+    }));
+
+    const { error } = await supabase.from("entries").upsert(rowsToSave, {
+      onConflict: "member_id,task_id,entry_date",
+    });
+
+    if (error) {
+      setIsSaving(false);
+      setSaveMessage("Ошибка сохранения. Проверь RLS policies для entries.");
+      console.error(error);
+      return;
+    }
 
     const updatedEntries = {
       ...entries,
@@ -203,9 +268,8 @@ export default function HomePage() {
     };
 
     setEntries(updatedEntries);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedEntries));
-
-    alert("Данные сохранены в браузере.");
+    setIsSaving(false);
+    setSaveMessage("Данные сохранены в Supabase.");
   }
 
   function getTaskTotal(memberId: string, taskId: string) {
@@ -286,7 +350,7 @@ export default function HomePage() {
           <h1 className="mb-2 text-xl font-bold text-red-700">Ошибка</h1>
           <p className="text-slate-700">{errorMessage}</p>
           <p className="mt-4 text-sm text-slate-500">
-            Проверь .env.local, RLS policies и наличие группы chetile в Supabase.
+            Проверь .env.local, RLS policies и данные группы chetile в Supabase.
           </p>
         </div>
       </main>
@@ -442,10 +506,17 @@ export default function HomePage() {
 
             <button
               onClick={handleSave}
-              className="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 text-lg font-semibold text-white transition hover:bg-slate-700"
+              disabled={isSaving}
+              className="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 text-lg font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
             >
-              Сохранить
+              {isSaving ? "Сохраняем..." : "Сохранить"}
             </button>
+
+            {saveMessage && (
+              <p className="mt-3 text-center text-sm font-medium text-slate-600">
+                {saveMessage}
+              </p>
+            )}
           </>
         )}
 
