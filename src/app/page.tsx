@@ -17,12 +17,21 @@ export default function HomePage() {
           «Четиле».
         </p>
 
-        <Link
-          href="/g/chetile"
-          className="block w-full rounded-xl bg-slate-900 px-4 py-3 text-center text-lg font-semibold text-white transition hover:bg-slate-700"
-        >
-          Открыть группу Четиле
-        </Link>
+        <div className="space-y-3">
+          <Link
+            href="/g/chetile"
+            className="block w-full rounded-xl bg-slate-900 px-4 py-3 text-center text-lg font-semibold text-white transition hover:bg-slate-700"
+          >
+            Открыть группу Четиле
+          </Link>
+
+          <Link
+            href="/admin"
+            className="block w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-lg font-semibold text-slate-800 transition hover:bg-slate-50"
+          >
+            Открыть админ-панель
+          </Link>
+        </div>
       </div>
     </main>
   );
