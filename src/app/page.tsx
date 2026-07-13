@@ -1,24 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
-const members = ["Ayan", "Alisher", "Arman", "Ernur", "Israfil", "Sayat"];
-
-const WEEK_START_DAY = 6; // 6 = суббота
+const GROUP_SLUG = "chetile";
+const STORAGE_KEY = "chetile-tracker-v2-demo";
 
 const dayNames = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
 
-const tasks = [
-  { name: "Салават", unit: "раз", weeklyGoal: 700 },
-  { name: "КК, стр.", unit: "стр.", weeklyGoal: 10 },
-  { name: "Книга, стр.", unit: "стр.", weeklyGoal: 20 },
-  { name: "Таха", unit: "раз", weeklyGoal: 1 },
-  { name: "Ораза", unit: "день", weeklyGoal: 1 },
-  { name: "Джевшен", unit: "раз", weeklyGoal: 100 },
-  { name: "Духа/Аууабин", unit: "раз", weeklyGoal: 2 },
-];
+type Member = {
+  id: string;
+  name: string;
+  display_order: number | null;
+};
 
-const STORAGE_KEY = "chetile-tracker-v2-demo";
+type Task = {
+  id: string;
+  name: string;
+  unit: string | null;
+  weekly_goal: number;
+  display_order: number | null;
+};
+
+type Group = {
+  id: string;
+  name: string;
+  slug: string;
+  week_start_day: number;
+};
 
 type EntryValues = Record<string, string>;
 type Entries = Record<string, EntryValues>;
@@ -39,11 +48,11 @@ function formatDisplayDate(date: Date) {
   return `${day}.${month}`;
 }
 
-function getCurrentWeekDays() {
+function getCurrentWeekDays(weekStartDay: number) {
   const today = new Date();
   const currentDay = today.getDay();
 
-  const diff = (currentDay - WEEK_START_DAY + 7) % 7;
+  const diff = (currentDay - weekStartDay + 7) % 7;
 
   const weekStart = new Date(today);
   weekStart.setDate(today.getDate() - diff);
@@ -61,10 +70,15 @@ function getCurrentWeekDays() {
 }
 
 export default function HomePage() {
-  const days = getCurrentWeekDays();
+  const [group, setGroup] = useState<Group | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [tasks, setTasks] = useState<Task[]>([]);
 
-  const [selectedMember, setSelectedMember] = useState<string | null>(null);
-  const [selectedDay, setSelectedDay] = useState(days[0].date);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [selectedDay, setSelectedDay] = useState("");
   const [selectedTab, setSelectedTab] = useState<Tab>("mark");
 
   // entries — это уже сохранённые данные
@@ -73,8 +87,75 @@ export default function HomePage() {
   // formValues — это временные данные, которые сейчас введены в форму
   const [formValues, setFormValues] = useState<EntryValues>({});
 
-  const entryKey = selectedMember ? `${selectedMember}_${selectedDay}` : "";
-  const weekTitle = `Неделя: ${days[0].displayDate}–${days[6].displayDate}`;
+  const days = useMemo(() => {
+    return getCurrentWeekDays(group?.week_start_day ?? 6);
+  }, [group?.week_start_day]);
+
+  const entryKey = selectedMember && selectedDay ? `${selectedMember.id}_${selectedDay}` : "";
+
+  const weekTitle =
+    days.length > 0 ? `Неделя: ${days[0].displayDate}–${days[6].displayDate}` : "";
+
+  useEffect(() => {
+    async function loadDataFromSupabase() {
+      setIsLoading(true);
+      setErrorMessage("");
+
+      const { data: groupData, error: groupError } = await supabase
+        .from("groups")
+        .select("id, name, slug, week_start_day")
+        .eq("slug", GROUP_SLUG)
+        .single();
+
+      if (groupError || !groupData) {
+        setErrorMessage("Не удалось загрузить группу из Supabase.");
+        setIsLoading(false);
+        return;
+      }
+
+      setGroup(groupData);
+
+      const { data: membersData, error: membersError } = await supabase
+        .from("group_members")
+        .select("id, name, display_order")
+        .eq("group_id", groupData.id)
+        .eq("is_active", true)
+        .order("display_order", { ascending: true });
+
+      if (membersError || !membersData) {
+        setErrorMessage("Не удалось загрузить участников из Supabase.");
+        setIsLoading(false);
+        return;
+      }
+
+      setMembers(membersData);
+
+      const { data: tasksData, error: tasksError } = await supabase
+        .from("tasks")
+        .select("id, name, unit, weekly_goal, display_order")
+        .eq("group_id", groupData.id)
+        .eq("is_active", true)
+        .order("display_order", { ascending: true });
+
+      if (tasksError || !tasksData) {
+        setErrorMessage("Не удалось загрузить задачи из Supabase.");
+        setIsLoading(false);
+        return;
+      }
+
+      setTasks(tasksData);
+
+      setIsLoading(false);
+    }
+
+    loadDataFromSupabase();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedDay && days.length > 0) {
+      setSelectedDay(days[0].date);
+    }
+  }, [days, selectedDay]);
 
   useEffect(() => {
     const savedEntries = localStorage.getItem(STORAGE_KEY);
@@ -95,7 +176,7 @@ export default function HomePage() {
     setFormValues(savedValuesForCurrentDay);
   }, [entryKey, entries]);
 
-  function handleSelectMember(member: string) {
+  function handleSelectMember(member: Member) {
     setSelectedMember(member);
     setSelectedTab("mark");
   }
@@ -106,10 +187,10 @@ export default function HomePage() {
     setFormValues({});
   }
 
-  function handleValueChange(taskName: string, value: string) {
+  function handleValueChange(taskId: string, value: string) {
     setFormValues((prev) => ({
       ...prev,
-      [taskName]: value,
+      [taskId]: value,
     }));
   }
 
@@ -127,10 +208,10 @@ export default function HomePage() {
     alert("Данные сохранены в браузере.");
   }
 
-  function getTaskTotal(member: string, taskName: string) {
+  function getTaskTotal(memberId: string, taskId: string) {
     return days.reduce((sum, day) => {
-      const key = `${member}_${day.date}`;
-      const value = Number(entries[key]?.[taskName] || 0);
+      const key = `${memberId}_${day.date}`;
+      const value = Number(entries[key]?.[taskId] || 0);
 
       return sum + value;
     }, 0);
@@ -142,10 +223,12 @@ export default function HomePage() {
     return Math.round((total / weeklyGoal) * 100);
   }
 
-  function getMemberOverallPercent(member: string) {
+  function getMemberOverallPercent(memberId: string) {
+    if (tasks.length === 0) return 0;
+
     const percents = tasks.map((task) => {
-      const total = getTaskTotal(member, task.name);
-      const percent = getTaskPercent(total, task.weeklyGoal);
+      const total = getTaskTotal(memberId, task.id);
+      const percent = getTaskPercent(total, Number(task.weekly_goal));
 
       return Math.min(percent, 100);
     });
@@ -156,8 +239,10 @@ export default function HomePage() {
   }
 
   function getGroupOverallPercent() {
+    if (members.length === 0) return 0;
+
     const memberPercents = members.map((member) =>
-      getMemberOverallPercent(member)
+      getMemberOverallPercent(member.id)
     );
 
     const sum = memberPercents.reduce((acc, percent) => acc + percent, 0);
@@ -184,16 +269,40 @@ export default function HomePage() {
     return "border-slate-200 bg-slate-50 text-slate-700";
   }
 
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-slate-100 px-4 py-8">
+        <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
+          <p className="text-slate-600">Загрузка данных из Supabase...</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (errorMessage) {
+    return (
+      <main className="min-h-screen bg-slate-100 px-4 py-8">
+        <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
+          <h1 className="mb-2 text-xl font-bold text-red-700">Ошибка</h1>
+          <p className="text-slate-700">{errorMessage}</p>
+          <p className="mt-4 text-sm text-slate-500">
+            Проверь .env.local, RLS policies и наличие группы chetile в Supabase.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   if (!selectedMember) {
     return (
       <main className="min-h-screen bg-slate-100 px-4 py-8">
         <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
           <p className="mb-2 text-sm font-medium text-slate-500">
-            Версия 2.0
+            Версия 2.0 / Supabase подключён
           </p>
 
           <h1 className="mb-2 text-2xl font-bold text-slate-900">
-            Недельный трекер Четиле
+            Недельный трекер {group?.name || "Четиле"}
           </h1>
 
           <p className="mb-6 text-slate-600">
@@ -203,11 +312,11 @@ export default function HomePage() {
           <div className="space-y-3">
             {members.map((member) => (
               <button
-                key={member}
+                key={member.id}
                 onClick={() => handleSelectMember(member)}
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-lg font-medium text-slate-800 transition hover:bg-slate-50"
               >
-                {member}
+                {member.name}
               </button>
             ))}
           </div>
@@ -216,11 +325,11 @@ export default function HomePage() {
     );
   }
 
-  const selectedMemberPercent = getMemberOverallPercent(selectedMember);
+  const selectedMemberPercent = getMemberOverallPercent(selectedMember.id);
   const groupPercent = getGroupOverallPercent();
 
   const sortedMembers = [...members].sort(
-    (a, b) => getMemberOverallPercent(b) - getMemberOverallPercent(a)
+    (a, b) => getMemberOverallPercent(b.id) - getMemberOverallPercent(a.id)
   );
 
   return (
@@ -234,11 +343,11 @@ export default function HomePage() {
         </button>
 
         <p className="mb-2 text-sm font-medium text-slate-500">
-          Участник: {selectedMember}
+          Участник: {selectedMember.name}
         </p>
 
         <h1 className="mb-1 text-2xl font-bold text-slate-900">
-          Недельный трекер Четиле
+          Недельный трекер {group?.name || "Четиле"}
         </h1>
 
         <p className="mb-4 text-sm font-medium text-slate-500">{weekTitle}</p>
@@ -309,20 +418,20 @@ export default function HomePage() {
 
             <div className="space-y-4">
               {tasks.map((task) => (
-                <div key={task.name}>
+                <div key={task.id}>
                   <label className="mb-1 block text-sm font-medium text-slate-700">
                     {task.name}
                     <span className="ml-1 text-slate-400">
-                      / норма {task.weeklyGoal} {task.unit}
+                      / норма {task.weekly_goal} {task.unit}
                     </span>
                   </label>
 
                   <input
                     type="number"
                     min="0"
-                    value={formValues[task.name] || ""}
+                    value={formValues[task.id] || ""}
                     onChange={(event) =>
-                      handleValueChange(task.name, event.target.value)
+                      handleValueChange(task.id, event.target.value)
                     }
                     placeholder="0"
                     className="w-full rounded-xl border border-slate-200 px-4 py-3 text-lg outline-none focus:border-slate-900"
@@ -360,12 +469,12 @@ export default function HomePage() {
 
             <div className="space-y-3">
               {tasks.map((task) => {
-                const total = getTaskTotal(selectedMember, task.name);
-                const percent = getTaskPercent(total, task.weeklyGoal);
+                const total = getTaskTotal(selectedMember.id, task.id);
+                const percent = getTaskPercent(total, Number(task.weekly_goal));
 
                 return (
                   <div
-                    key={task.name}
+                    key={task.id}
                     className={`rounded-2xl border p-4 ${getPercentCardClass(
                       percent
                     )}`}
@@ -374,7 +483,7 @@ export default function HomePage() {
                       <div>
                         <p className="font-semibold">{task.name}</p>
                         <p className="mt-1 text-sm">
-                          {total} / {task.weeklyGoal} {task.unit}
+                          {total} / {task.weekly_goal} {task.unit}
                         </p>
                       </div>
 
@@ -408,11 +517,11 @@ export default function HomePage() {
 
             <div className="space-y-3">
               {sortedMembers.map((member, index) => {
-                const percent = getMemberOverallPercent(member);
+                const percent = getMemberOverallPercent(member.id);
 
                 return (
                   <div
-                    key={member}
+                    key={member.id}
                     className={`rounded-2xl border p-4 ${getPercentCardClass(
                       percent
                     )}`}
@@ -420,7 +529,7 @@ export default function HomePage() {
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="font-semibold">
-                          {index + 1}. {member}
+                          {index + 1}. {member.name}
                         </p>
                         <p className="mt-1 text-sm">{getStatus(percent)}</p>
                       </div>
