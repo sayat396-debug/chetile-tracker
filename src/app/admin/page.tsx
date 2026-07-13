@@ -53,6 +53,11 @@ export default function AdminPage() {
   const [newTaskUnit, setNewTaskUnit] = useState("");
   const [newTaskWeeklyGoal, setNewTaskWeeklyGoal] = useState("");
 
+  const [editingTaskId, setEditingTaskId] = useState("");
+  const [editTaskName, setEditTaskName] = useState("");
+  const [editTaskUnit, setEditTaskUnit] = useState("");
+  const [editTaskWeeklyGoal, setEditTaskWeeklyGoal] = useState("");
+
   const [isLoading, setIsLoading] = useState(true);
   const [isGroupsLoading, setIsGroupsLoading] = useState(false);
   const [isMembersLoading, setIsMembersLoading] = useState(false);
@@ -62,6 +67,7 @@ export default function AdminPage() {
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [isAddingTask, setIsAddingTask] = useState(false);
+  const [isUpdatingTask, setIsUpdatingTask] = useState(false);
 
   const [message, setMessage] = useState("");
 
@@ -395,6 +401,71 @@ export default function AdminPage() {
 
     setMessage("Задача добавлена.");
     setIsAddingTask(false);
+  }
+
+  function handleStartEditTask(task: Task) {
+    setEditingTaskId(task.id);
+    setEditTaskName(task.name);
+    setEditTaskUnit(task.unit || "");
+    setEditTaskWeeklyGoal(String(task.weekly_goal));
+    setMessage("");
+  }
+
+  function handleCancelEditTask() {
+    setEditingTaskId("");
+    setEditTaskName("");
+    setEditTaskUnit("");
+    setEditTaskWeeklyGoal("");
+    setMessage("");
+  }
+
+  async function handleSaveTaskEdit(task: Task) {
+    const cleanName = editTaskName.trim();
+    const cleanUnit = editTaskUnit.trim();
+    const cleanWeeklyGoal = Number(editTaskWeeklyGoal);
+
+    if (!cleanName) {
+      setMessage("Введите название задачи.");
+      return;
+    }
+
+    if (!editTaskWeeklyGoal || Number.isNaN(cleanWeeklyGoal)) {
+      setMessage("Введите недельную норму числом.");
+      return;
+    }
+
+    if (cleanWeeklyGoal < 0) {
+      setMessage("Недельная норма не может быть меньше 0.");
+      return;
+    }
+
+    setIsUpdatingTask(true);
+    setMessage("");
+
+    const { error } = await supabase
+      .from("tasks")
+      .update({
+        name: cleanName,
+        unit: cleanUnit || null,
+        weekly_goal: cleanWeeklyGoal,
+      })
+      .eq("id", task.id);
+
+    if (error) {
+      setMessage(error.message);
+      setIsUpdatingTask(false);
+      return;
+    }
+
+    await loadTasksAgain(task.group_id);
+
+    setEditingTaskId("");
+    setEditTaskName("");
+    setEditTaskUnit("");
+    setEditTaskWeeklyGoal("");
+
+    setMessage("Задача обновлена.");
+    setIsUpdatingTask(false);
   }
 
   async function handleToggleTaskActive(task: Task) {
@@ -764,33 +835,101 @@ export default function AdminPage() {
 
               {!isTasksLoading && tasks.length > 0 && (
                 <div className="space-y-2">
-                  {tasks.map((task) => (
-                    <div
-                      key={task.id}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"
-                    >
-                      <div>
-                        <p className="font-semibold text-slate-900">
-                          {task.name}
-                        </p>
+                  {tasks.map((task) => {
+                    const isEditingThisTask = editingTaskId === task.id;
 
-                        <p className="text-xs text-slate-500">
-                          Норма: {task.weekly_goal} {task.unit || ""}
-                        </p>
-
-                        <p className="text-xs text-slate-500">
-                          {task.is_active ? "Активна" : "Отключена"}
-                        </p>
-                      </div>
-
-                      <button
-                        onClick={() => handleToggleTaskActive(task)}
-                        className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                    return (
+                      <div
+                        key={task.id}
+                        className="rounded-xl border border-slate-200 bg-slate-50 p-3"
                       >
-                        {task.is_active ? "Отключить" : "Включить"}
-                      </button>
-                    </div>
-                  ))}
+                        {isEditingThisTask ? (
+                          <div className="space-y-3">
+                            <input
+                              value={editTaskName}
+                              onChange={(event) =>
+                                setEditTaskName(event.target.value)
+                              }
+                              placeholder="Название задачи"
+                              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
+                            />
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <input
+                                value={editTaskUnit}
+                                onChange={(event) =>
+                                  setEditTaskUnit(event.target.value)
+                                }
+                                placeholder="Ед. изм."
+                                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
+                              />
+
+                              <input
+                                type="number"
+                                min="0"
+                                value={editTaskWeeklyGoal}
+                                onChange={(event) =>
+                                  setEditTaskWeeklyGoal(event.target.value)
+                                }
+                                placeholder="Норма"
+                                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
+                              />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                onClick={() => handleSaveTaskEdit(task)}
+                                disabled={isUpdatingTask}
+                                className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                              >
+                                {isUpdatingTask ? "Сохраняем..." : "Сохранить"}
+                              </button>
+
+                              <button
+                                onClick={handleCancelEditTask}
+                                disabled={isUpdatingTask}
+                                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                              >
+                                Отмена
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="font-semibold text-slate-900">
+                                {task.name}
+                              </p>
+
+                              <p className="text-xs text-slate-500">
+                                Норма: {task.weekly_goal} {task.unit || ""}
+                              </p>
+
+                              <p className="text-xs text-slate-500">
+                                {task.is_active ? "Активна" : "Отключена"}
+                              </p>
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                              <button
+                                onClick={() => handleStartEditTask(task)}
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                              >
+                                Изменить
+                              </button>
+
+                              <button
+                                onClick={() => handleToggleTaskActive(task)}
+                                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                              >
+                                {task.is_active ? "Отключить" : "Включить"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
