@@ -25,6 +25,7 @@ type Group = {
   name: string;
   slug: string;
   week_start_day: number;
+  created_at: string | null;
 };
 
 type EntryRow = {
@@ -57,17 +58,31 @@ function formatDisplayDate(date: Date) {
   return `${day}.${month}`;
 }
 
+function getTodayKey() {
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+
+  return toDateKey(today);
+}
+
+function getWeekStartDateForDate(date: Date, weekStartDay: number) {
+  const normalizedDate = new Date(date);
+  normalizedDate.setHours(12, 0, 0, 0);
+
+  const currentDay = normalizedDate.getDay();
+  const diff = (currentDay - weekStartDay + 7) % 7;
+
+  const weekStart = new Date(normalizedDate);
+  weekStart.setDate(normalizedDate.getDate() - diff);
+
+  return weekStart;
+}
+
 function getCurrentWeekStartDate(weekStartDay: number) {
   const today = new Date();
   today.setHours(12, 0, 0, 0);
 
-  const currentDay = today.getDay();
-  const diff = (currentDay - weekStartDay + 7) % 7;
-
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - diff);
-
-  return weekStart;
+  return getWeekStartDateForDate(today, weekStartDay);
 }
 
 function getWeekDaysFromStart(weekStartDateKey: string) {
@@ -85,21 +100,71 @@ function getWeekDaysFromStart(weekStartDateKey: string) {
   });
 }
 
-function getWeekOptions(weekStartDay: number, count = 12) {
-  const currentWeekStart = getCurrentWeekStartDate(weekStartDay);
+function getCreatedWeekStartDateKey(
+  groupCreatedAt: string | null,
+  weekStartDay: number
+) {
+  if (!groupCreatedAt) {
+    return "";
+  }
 
-  return Array.from({ length: count }, (_, index) => {
+  const createdAtDate = new Date(groupCreatedAt);
+
+  if (Number.isNaN(createdAtDate.getTime())) {
+    return "";
+  }
+
+  const createdWeekStart = getWeekStartDateForDate(createdAtDate, weekStartDay);
+
+  return toDateKey(createdWeekStart);
+}
+
+function getWeekOptions(
+  weekStartDay: number,
+  groupCreatedAt: string | null,
+  maxWeeks = 100
+) {
+  const currentWeekStart = getCurrentWeekStartDate(weekStartDay);
+  const createdWeekStartKey = getCreatedWeekStartDateKey(
+    groupCreatedAt,
+    weekStartDay
+  );
+
+  const options = [];
+
+  for (let index = 0; index < maxWeeks; index++) {
     const startDate = new Date(currentWeekStart);
     startDate.setDate(currentWeekStart.getDate() - index * 7);
+
+    const startDateKey = toDateKey(startDate);
+
+    if (createdWeekStartKey && startDateKey < createdWeekStartKey) {
+      break;
+    }
 
     const endDate = new Date(startDate);
     endDate.setDate(startDate.getDate() + 6);
 
-    return {
-      value: toDateKey(startDate),
+    options.push({
+      value: startDateKey,
       label: `${formatDisplayDate(startDate)}–${formatDisplayDate(endDate)}`,
-    };
-  });
+    });
+  }
+
+  return options;
+}
+
+function getDefaultSelectedDayForWeek(weekStartDateKey: string) {
+  const todayKey = getTodayKey();
+  const days = getWeekDaysFromStart(weekStartDateKey);
+
+  const todayInSelectedWeek = days.find((day) => day.date === todayKey);
+
+  if (todayInSelectedWeek) {
+    return todayInSelectedWeek.date;
+  }
+
+  return days[0]?.date || "";
 }
 
 function convertEntriesRowsToState(rows: EntryRow[]) {
@@ -142,9 +207,15 @@ export default function GroupPage() {
 
   const selectedMemberStorageKey = `selected-member-${groupSlug}`;
 
+  const todayKey = getTodayKey();
+
   const weekOptions = useMemo(() => {
-    return getWeekOptions(group?.week_start_day ?? 6, 12);
-  }, [group?.week_start_day]);
+    return getWeekOptions(
+      group?.week_start_day ?? 6,
+      group?.created_at ?? null,
+      100
+    );
+  }, [group?.week_start_day, group?.created_at]);
 
   const days = useMemo(() => {
     if (selectedWeekStartDate) {
@@ -174,7 +245,7 @@ export default function GroupPage() {
 
       const { data: groupData, error: groupError } = await supabase
         .from("groups")
-        .select("id, name, slug, week_start_day")
+        .select("id, name, slug, week_start_day, created_at")
         .eq("slug", groupSlug)
         .single();
 
@@ -188,10 +259,10 @@ export default function GroupPage() {
 
       const currentWeekStart = getCurrentWeekStartDate(groupData.week_start_day);
       const currentWeekStartKey = toDateKey(currentWeekStart);
-      const currentWeekDays = getWeekDaysFromStart(currentWeekStartKey);
+      const defaultDay = getDefaultSelectedDayForWeek(currentWeekStartKey);
 
       setSelectedWeekStartDate(currentWeekStartKey);
-      setSelectedDay(currentWeekDays[0].date);
+      setSelectedDay(defaultDay);
 
       const { data: membersData, error: membersError } = await supabase
         .from("group_members")
@@ -296,10 +367,10 @@ export default function GroupPage() {
   }
 
   function handleWeekChange(newWeekStartDate: string) {
-    const newWeekDays = getWeekDaysFromStart(newWeekStartDate);
+    const defaultDay = getDefaultSelectedDayForWeek(newWeekStartDate);
 
     setSelectedWeekStartDate(newWeekStartDate);
-    setSelectedDay(newWeekDays[0].date);
+    setSelectedDay(defaultDay);
     setEntries({});
     setFormValues({});
     setSaveMessage("");
@@ -416,6 +487,18 @@ export default function GroupPage() {
     return "border-slate-200 bg-slate-50 text-slate-700";
   }
 
+  function getDayDotClass(dayDate: string) {
+    if (dayDate === todayKey) {
+      return "bg-green-500";
+    }
+
+    if (dayDate < todayKey) {
+      return "bg-red-500";
+    }
+
+    return "";
+  }
+
   if (isLoading) {
     return (
       <main className="min-h-screen bg-slate-100 px-4 py-8">
@@ -517,6 +600,18 @@ export default function GroupPage() {
             ))}
           </select>
 
+          <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
+            <div className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-red-500" />
+              <span>Прошедший день</span>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-green-500" />
+              <span>Сегодня</span>
+            </div>
+          </div>
+
           {isEntriesLoading && (
             <p className="mt-2 text-sm text-slate-500">
               Загружаем отметки за выбранную неделю...
@@ -571,20 +666,30 @@ export default function GroupPage() {
               </p>
 
               <div className="grid grid-cols-4 gap-2">
-                {days.map((day) => (
-                  <button
-                    key={day.date}
-                    onClick={() => setSelectedDay(day.date)}
-                    className={`rounded-xl border px-3 py-2 text-sm font-medium transition ${
-                      selectedDay === day.date
-                        ? "border-slate-900 bg-slate-900 text-white"
-                        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                    }`}
-                  >
-                    <div>{day.label}</div>
-                    <div>{day.displayDate}</div>
-                  </button>
-                ))}
+                {days.map((day) => {
+                  const dotClass = getDayDotClass(day.date);
+
+                  return (
+                    <button
+                      key={day.date}
+                      onClick={() => setSelectedDay(day.date)}
+                      className={`relative rounded-xl border px-3 py-2 text-sm font-medium transition ${
+                        selectedDay === day.date
+                          ? "border-slate-900 bg-slate-900 text-white"
+                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      {dotClass && (
+                        <span
+                          className={`absolute right-2 top-2 h-2 w-2 rounded-full ${dotClass}`}
+                        />
+                      )}
+
+                      <div>{day.label}</div>
+                      <div>{day.displayDate}</div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
