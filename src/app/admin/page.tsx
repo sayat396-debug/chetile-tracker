@@ -115,6 +115,7 @@ export default function AdminPage() {
       const { data, error } = await supabase
         .from("groups")
         .select("id, name, slug, week_start_day, created_at")
+        .eq("owner_id", session.user.id)
         .order("created_at", { ascending: false });
 
       setIsGroupsLoading(false);
@@ -207,9 +208,12 @@ export default function AdminPage() {
   }
 
   async function loadGroupsAgain(preferredSelectedGroupId?: string) {
+    if (!session) return;
+
     const { data, error } = await supabase
       .from("groups")
       .select("id, name, slug, week_start_day, created_at")
+      .eq("owner_id", session.user.id)
       .order("created_at", { ascending: false });
 
     if (error) {
