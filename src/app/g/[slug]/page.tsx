@@ -12,6 +12,7 @@ type Member = {
   name: string;
   display_order: number | null;
   has_pin: boolean | null;
+  pin_updated_at: string | null;
 };
 
 type Task = {
@@ -214,6 +215,7 @@ export default function GroupPage() {
   const [formValues, setFormValues] = useState<EntryValues>({});
 
   const selectedMemberStorageKey = `selected-member-${groupSlug}`;
+  const verifiedMemberStorageKey = `verified-member-${groupSlug}`;
 
   const todayKey = getTodayKey();
 
@@ -245,6 +247,30 @@ export default function GroupPage() {
     days.length > 0
       ? `Неделя: ${days[0].displayDate}–${days[6].displayDate}`
       : "";
+
+  function getMemberVerificationToken(member: Member) {
+    return `${member.id}_${member.pin_updated_at || "no-pin-date"}`;
+  }
+
+  function isMemberVerifiedOnThisDevice(member: Member) {
+    if (!member.has_pin) {
+      return true;
+    }
+
+    const savedToken = localStorage.getItem(verifiedMemberStorageKey);
+    return savedToken === getMemberVerificationToken(member);
+  }
+
+  function rememberMemberVerification(member: Member) {
+    localStorage.setItem(
+      verifiedMemberStorageKey,
+      getMemberVerificationToken(member)
+    );
+  }
+
+  function forgetMemberVerification() {
+    localStorage.removeItem(verifiedMemberStorageKey);
+  }
 
   useEffect(() => {
     async function loadBaseDataFromSupabase() {
@@ -288,7 +314,7 @@ export default function GroupPage() {
 
       const { data: membersData, error: membersError } = await supabase
         .from("group_members_public")
-        .select("id, name, display_order, has_pin")
+        .select("id, name, display_order, has_pin, pin_updated_at")
         .eq("group_id", groupData.id)
         .eq("is_active", true)
         .order("display_order", { ascending: true });
@@ -308,12 +334,12 @@ export default function GroupPage() {
           (member) => member.id === savedMemberId
         );
 
-        if (savedMember && !savedMember.has_pin) {
+        if (savedMember && isMemberVerifiedOnThisDevice(savedMember)) {
           setSelectedMember(savedMember);
           setSelectedTab("mark");
         }
 
-        if (savedMember?.has_pin) {
+        if (savedMember && !isMemberVerifiedOnThisDevice(savedMember)) {
           localStorage.removeItem(selectedMemberStorageKey);
         }
       }
@@ -337,7 +363,7 @@ export default function GroupPage() {
     }
 
     loadBaseDataFromSupabase();
-  }, [groupSlug, selectedMemberStorageKey]);
+  }, [groupSlug, selectedMemberStorageKey, verifiedMemberStorageKey]);
 
   useEffect(() => {
     async function loadEntriesForSelectedWeek() {
@@ -382,7 +408,7 @@ export default function GroupPage() {
     setSaveMessage("");
     setPinError("");
 
-    if (member.has_pin) {
+    if (member.has_pin && !isMemberVerifiedOnThisDevice(member)) {
       setPendingPinMember(member);
       setPinCode("");
       setSelectedMember(null);
@@ -426,11 +452,13 @@ export default function GroupPage() {
       return;
     }
 
+    rememberMemberVerification(pendingPinMember);
+    localStorage.setItem(selectedMemberStorageKey, pendingPinMember.id);
+
     setSelectedMember(pendingPinMember);
     setPendingPinMember(null);
     setPinCode("");
     setSelectedTab("mark");
-    localStorage.setItem(selectedMemberStorageKey, pendingPinMember.id);
   }
 
   function handleCancelPin() {
@@ -448,6 +476,11 @@ export default function GroupPage() {
     setFormValues({});
     setSaveMessage("");
     localStorage.removeItem(selectedMemberStorageKey);
+  }
+
+  function handleForgetThisDevice() {
+    forgetMemberVerification();
+    handleBackToMembers();
   }
 
   function handleWeekChange(newWeekStartDate: string) {
@@ -765,10 +798,21 @@ export default function GroupPage() {
 
         <button
           onClick={handleBackToMembers}
-          className="mb-4 text-sm font-medium text-slate-500 hover:text-slate-800"
+          className="mb-2 block text-sm font-medium text-slate-500 hover:text-slate-800"
         >
           ← Назад к выбору участника
         </button>
+
+        {selectedMember.has_pin && (
+          <button
+            onClick={handleForgetThisDevice}
+            className="mb-4 block text-sm font-medium text-orange-600 hover:text-orange-800"
+          >
+            Забыть PIN на этом устройстве
+          </button>
+        )}
+
+        {!selectedMember.has_pin && <div className="mb-4" />}
 
         <p className="mb-2 text-sm font-medium text-slate-500">
           Участник: {selectedMember.name}
