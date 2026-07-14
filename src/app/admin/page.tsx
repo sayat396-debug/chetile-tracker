@@ -52,6 +52,9 @@ export default function AdminPage() {
   const [editGroupSlug, setEditGroupSlug] = useState("");
   const [editGroupWeekStartDay, setEditGroupWeekStartDay] = useState("6");
 
+  const [transferringGroupId, setTransferringGroupId] = useState("");
+  const [transferEmail, setTransferEmail] = useState("");
+
   const [newMemberName, setNewMemberName] = useState("");
   const [editingMemberId, setEditingMemberId] = useState("");
   const [editMemberName, setEditMemberName] = useState("");
@@ -73,6 +76,7 @@ export default function AdminPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [isUpdatingGroup, setIsUpdatingGroup] = useState(false);
+  const [isTransferringGroup, setIsTransferringGroup] = useState(false);
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [isUpdatingMember, setIsUpdatingMember] = useState(false);
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -130,6 +134,8 @@ export default function AdminPage() {
 
       if (loadedGroups.length > 0) {
         setSelectedGroupId((current) => current || loadedGroups[0].id);
+      } else {
+        setSelectedGroupId("");
       }
     }
 
@@ -224,14 +230,22 @@ export default function AdminPage() {
     const loadedGroups = data || [];
     setGroups(loadedGroups);
 
-    if (preferredSelectedGroupId) {
+    if (loadedGroups.length === 0) {
+      setSelectedGroupId("");
+      setMembers([]);
+      setTasks([]);
+      return;
+    }
+
+    if (
+      preferredSelectedGroupId &&
+      loadedGroups.some((group) => group.id === preferredSelectedGroupId)
+    ) {
       setSelectedGroupId(preferredSelectedGroupId);
       return;
     }
 
-    if (loadedGroups.length > 0) {
-      setSelectedGroupId(loadedGroups[0].id);
-    }
+    setSelectedGroupId(loadedGroups[0].id);
   }
 
   async function loadMembersAgain(groupId: string) {
@@ -323,6 +337,8 @@ export default function AdminPage() {
     setEditGroupName(group.name);
     setEditGroupSlug(group.slug);
     setEditGroupWeekStartDay(String(group.week_start_day));
+    setTransferringGroupId("");
+    setTransferEmail("");
     setMessage("");
   }
 
@@ -375,6 +391,58 @@ export default function AdminPage() {
 
     setMessage("Настройки группы обновлены.");
     setIsUpdatingGroup(false);
+  }
+
+  function handleStartTransferGroup(group: Group) {
+    setTransferringGroupId(group.id);
+    setTransferEmail("");
+    setEditingGroupId("");
+    setMessage(
+      "Новый админ должен заранее зарегистрироваться через /admin. После передачи группа исчезнет из твоей админки."
+    );
+  }
+
+  function handleCancelTransferGroup() {
+    setTransferringGroupId("");
+    setTransferEmail("");
+    setMessage("");
+  }
+
+  async function handleTransferGroup(group: Group) {
+    const cleanEmail = transferEmail.trim().toLowerCase();
+
+    if (!cleanEmail) {
+      setMessage("Введите email нового админа.");
+      return;
+    }
+
+    const isConfirmed = window.confirm(
+      `Передать группу "${group.name}" пользователю ${cleanEmail}? После передачи эта группа исчезнет из твоей админки.`
+    );
+
+    if (!isConfirmed) return;
+
+    setIsTransferringGroup(true);
+    setMessage("");
+
+    const { data, error } = await supabase.rpc("transfer_group_by_email", {
+      p_group_id: group.id,
+      p_new_owner_email: cleanEmail,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setIsTransferringGroup(false);
+      return;
+    }
+
+    setTransferringGroupId("");
+    setTransferEmail("");
+
+    await loadGroupsAgain();
+
+    setMessage(data || "Группа передана новому админу.");
+    setIsTransferringGroup(false);
   }
 
   async function handleAddMember() {
@@ -780,7 +848,8 @@ export default function AdminPage() {
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="font-semibold text-slate-900">Групп пока нет</p>
                 <p className="mt-1 text-sm text-slate-600">
-                  Создай первую группу выше.
+                  Создай первую группу выше или попроси другого админа передать
+                  тебе группу.
                 </p>
               </div>
             )}
@@ -789,6 +858,8 @@ export default function AdminPage() {
               <div className="space-y-3">
                 {groups.map((group) => {
                   const isEditingThisGroup = editingGroupId === group.id;
+                  const isTransferringThisGroup =
+                    transferringGroupId === group.id;
 
                   return (
                     <div
@@ -857,6 +928,47 @@ export default function AdminPage() {
                             </button>
                           </div>
                         </div>
+                      ) : isTransferringThisGroup ? (
+                        <div className="space-y-3">
+                          <p className="font-semibold text-slate-900">
+                            Передать группу: {group.name}
+                          </p>
+
+                          <p className="text-sm text-slate-600">
+                            Введи email нового админа. Он должен заранее
+                            зарегистрироваться через /admin.
+                          </p>
+
+                          <input
+                            type="email"
+                            value={transferEmail}
+                            onChange={(event) =>
+                              setTransferEmail(event.target.value)
+                            }
+                            placeholder="newadmin@mail.com"
+                            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
+                          />
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => handleTransferGroup(group)}
+                              disabled={isTransferringGroup}
+                              className="rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
+                            >
+                              {isTransferringGroup
+                                ? "Передаём..."
+                                : "Передать"}
+                            </button>
+
+                            <button
+                              onClick={handleCancelTransferGroup}
+                              disabled={isTransferringGroup}
+                              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                            >
+                              Отмена
+                            </button>
+                          </div>
+                        </div>
                       ) : (
                         <>
                           <p className="font-semibold text-slate-900">
@@ -872,7 +984,7 @@ export default function AdminPage() {
                             {getWeekStartDayLabel(group.week_start_day)}
                           </p>
 
-                          <div className="mt-4 grid grid-cols-3 gap-2">
+                          <div className="mt-4 grid grid-cols-2 gap-2">
                             <button
                               onClick={() => setSelectedGroupId(group.id)}
                               className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
@@ -885,6 +997,13 @@ export default function AdminPage() {
                               className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
                             >
                               Изменить
+                            </button>
+
+                            <button
+                              onClick={() => handleStartTransferGroup(group)}
+                              className="rounded-xl border border-red-200 bg-white px-3 py-2 text-center text-sm font-semibold text-red-700 transition hover:bg-red-50"
+                            >
+                              Передать
                             </button>
 
                             <Link
