@@ -11,6 +11,8 @@ type Group = {
   slug: string;
   week_start_day: number;
   created_at: string | null;
+  is_archived: boolean | null;
+  archived_at: string | null;
 };
 
 type Member = {
@@ -77,6 +79,8 @@ export default function AdminPage() {
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
   const [isUpdatingGroup, setIsUpdatingGroup] = useState(false);
   const [isTransferringGroup, setIsTransferringGroup] = useState(false);
+  const [isArchivingGroup, setIsArchivingGroup] = useState(false);
+  const [isRestoringGroup, setIsRestoringGroup] = useState(false);
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [isUpdatingMember, setIsUpdatingMember] = useState(false);
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -84,7 +88,12 @@ export default function AdminPage() {
 
   const [message, setMessage] = useState("");
 
-  const selectedGroup = groups.find((group) => group.id === selectedGroupId);
+  const activeGroups = groups.filter((group) => !group.is_archived);
+  const archivedGroups = groups.filter((group) => group.is_archived);
+
+  const selectedGroup = activeGroups.find(
+    (group) => group.id === selectedGroupId
+  );
 
   useEffect(() => {
     async function loadSession() {
@@ -118,7 +127,9 @@ export default function AdminPage() {
 
       const { data, error } = await supabase
         .from("groups")
-        .select("id, name, slug, week_start_day, created_at")
+        .select(
+          "id, name, slug, week_start_day, created_at, is_archived, archived_at"
+        )
         .eq("owner_id", session.user.id)
         .order("created_at", { ascending: false });
 
@@ -130,12 +141,24 @@ export default function AdminPage() {
       }
 
       const loadedGroups = data || [];
+      const loadedActiveGroups = loadedGroups.filter(
+        (group) => !group.is_archived
+      );
+
       setGroups(loadedGroups);
 
-      if (loadedGroups.length > 0) {
-        setSelectedGroupId((current) => current || loadedGroups[0].id);
+      if (loadedActiveGroups.length > 0) {
+        setSelectedGroupId((current) => {
+          const currentIsActive = loadedActiveGroups.some(
+            (group) => group.id === current
+          );
+
+          return currentIsActive ? current : loadedActiveGroups[0].id;
+        });
       } else {
         setSelectedGroupId("");
+        setMembers([]);
+        setTasks([]);
       }
     }
 
@@ -218,7 +241,9 @@ export default function AdminPage() {
 
     const { data, error } = await supabase
       .from("groups")
-      .select("id, name, slug, week_start_day, created_at")
+      .select(
+        "id, name, slug, week_start_day, created_at, is_archived, archived_at"
+      )
       .eq("owner_id", session.user.id)
       .order("created_at", { ascending: false });
 
@@ -228,9 +253,13 @@ export default function AdminPage() {
     }
 
     const loadedGroups = data || [];
+    const loadedActiveGroups = loadedGroups.filter(
+      (group) => !group.is_archived
+    );
+
     setGroups(loadedGroups);
 
-    if (loadedGroups.length === 0) {
+    if (loadedActiveGroups.length === 0) {
       setSelectedGroupId("");
       setMembers([]);
       setTasks([]);
@@ -239,13 +268,13 @@ export default function AdminPage() {
 
     if (
       preferredSelectedGroupId &&
-      loadedGroups.some((group) => group.id === preferredSelectedGroupId)
+      loadedActiveGroups.some((group) => group.id === preferredSelectedGroupId)
     ) {
       setSelectedGroupId(preferredSelectedGroupId);
       return;
     }
 
-    setSelectedGroupId(loadedGroups[0].id);
+    setSelectedGroupId(loadedActiveGroups[0].id);
   }
 
   async function loadMembersAgain(groupId: string) {
@@ -278,6 +307,26 @@ export default function AdminPage() {
     setTasks(data || []);
   }
 
+  function getGroupLink(group: Group) {
+    if (typeof window === "undefined") {
+      return `/g/${group.slug}`;
+    }
+
+    return `${window.location.origin}/g/${group.slug}`;
+  }
+
+  async function handleCopyGroupLink(group: Group) {
+    const groupLink = getGroupLink(group);
+
+    try {
+      await navigator.clipboard.writeText(groupLink);
+      setMessage(`Ссылка скопирована: ${groupLink}`);
+    } catch (error) {
+      console.error(error);
+      setMessage(`Ссылка группы: ${groupLink}`);
+    }
+  }
+
   async function handleCreateGroup() {
     if (!session) return;
 
@@ -307,6 +356,8 @@ export default function AdminPage() {
           name: cleanName,
           slug: cleanSlug,
           week_start_day: Number(newGroupWeekStartDay),
+          is_archived: false,
+          archived_at: null,
         })
         .select("id")
         .single();
@@ -443,6 +494,70 @@ export default function AdminPage() {
 
     setMessage(data || "Группа передана новому админу.");
     setIsTransferringGroup(false);
+  }
+
+  async function handleArchiveGroup(group: Group) {
+    const isConfirmed = window.confirm(
+      `Архивировать группу "${group.name}"? Она исчезнет из активных групп, но данные сохранятся.`
+    );
+
+    if (!isConfirmed) return;
+
+    setIsArchivingGroup(true);
+    setMessage("");
+
+    const { error } = await supabase
+      .from("groups")
+      .update({
+        is_archived: true,
+        archived_at: new Date().toISOString(),
+      })
+      .eq("id", group.id);
+
+    if (error) {
+      setMessage(error.message);
+      setIsArchivingGroup(false);
+      return;
+    }
+
+    setEditingGroupId("");
+    setTransferringGroupId("");
+    setTransferEmail("");
+
+    await loadGroupsAgain();
+
+    setMessage("Группа отправлена в архив.");
+    setIsArchivingGroup(false);
+  }
+
+  async function handleRestoreGroup(group: Group) {
+    const isConfirmed = window.confirm(
+      `Восстановить группу "${group.name}" из архива?`
+    );
+
+    if (!isConfirmed) return;
+
+    setIsRestoringGroup(true);
+    setMessage("");
+
+    const { error } = await supabase
+      .from("groups")
+      .update({
+        is_archived: false,
+        archived_at: null,
+      })
+      .eq("id", group.id);
+
+    if (error) {
+      setMessage(error.message);
+      setIsRestoringGroup(false);
+      return;
+    }
+
+    await loadGroupsAgain(group.id);
+
+    setMessage("Группа восстановлена из архива.");
+    setIsRestoringGroup(false);
   }
 
   async function handleAddMember() {
@@ -727,6 +842,22 @@ export default function AdminPage() {
     return "Не указано";
   }
 
+  function getArchivedDateLabel(archivedAt: string | null) {
+    if (!archivedAt) return "Дата архива не указана";
+
+    const date = new Date(archivedAt);
+
+    if (Number.isNaN(date.getTime())) {
+      return "Дата архива не указана";
+    }
+
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+
+    return `${day}.${month}.${year}`;
+  }
+
   if (isLoading) {
     return (
       <main className="min-h-screen bg-slate-100 px-4 py-8">
@@ -826,7 +957,7 @@ export default function AdminPage() {
 
           <div className="mb-6">
             <h2 className="mb-3 text-xl font-bold text-slate-900">
-              Мои группы
+              Активные группы
             </h2>
 
             {isGroupsLoading && (
@@ -835,19 +966,20 @@ export default function AdminPage() {
               </div>
             )}
 
-            {!isGroupsLoading && groups.length === 0 && (
+            {!isGroupsLoading && activeGroups.length === 0 && (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="font-semibold text-slate-900">Групп пока нет</p>
+                <p className="font-semibold text-slate-900">
+                  Активных групп пока нет
+                </p>
                 <p className="mt-1 text-sm text-slate-600">
-                  Создай первую группу выше или попроси другого админа передать
-                  тебе группу.
+                  Создай новую группу выше или восстанови группу из архива.
                 </p>
               </div>
             )}
 
-            {!isGroupsLoading && groups.length > 0 && (
+            {!isGroupsLoading && activeGroups.length > 0 && (
               <div className="space-y-3">
-                {groups.map((group) => {
+                {activeGroups.map((group) => {
                   const isEditingThisGroup = editingGroupId === group.id;
                   const isTransferringThisGroup =
                     transferringGroupId === group.id;
@@ -991,10 +1123,10 @@ export default function AdminPage() {
                             </button>
 
                             <button
-                              onClick={() => handleStartTransferGroup(group)}
-                              className="rounded-xl border border-red-200 bg-white px-3 py-2 text-center text-sm font-semibold text-red-700 transition hover:bg-red-50"
+                              onClick={() => handleCopyGroupLink(group)}
+                              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
                             >
-                              Передать
+                              Копировать
                             </button>
 
                             <Link
@@ -1003,6 +1135,21 @@ export default function AdminPage() {
                             >
                               Открыть
                             </Link>
+
+                            <button
+                              onClick={() => handleStartTransferGroup(group)}
+                              className="rounded-xl border border-red-200 bg-white px-3 py-2 text-center text-sm font-semibold text-red-700 transition hover:bg-red-50"
+                            >
+                              Передать
+                            </button>
+
+                            <button
+                              onClick={() => handleArchiveGroup(group)}
+                              disabled={isArchivingGroup}
+                              className="rounded-xl border border-orange-200 bg-white px-3 py-2 text-center text-sm font-semibold text-orange-700 transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:bg-orange-100"
+                            >
+                              {isArchivingGroup ? "..." : "В архив"}
+                            </button>
                           </div>
                         </>
                       )}
@@ -1012,6 +1159,52 @@ export default function AdminPage() {
               </div>
             )}
           </div>
+
+          {archivedGroups.length > 0 && (
+            <div className="mb-6">
+              <h2 className="mb-3 text-xl font-bold text-slate-900">
+                Архив групп
+              </h2>
+
+              <div className="space-y-3">
+                {archivedGroups.map((group) => (
+                  <div
+                    key={group.id}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                  >
+                    <p className="font-semibold text-slate-900">
+                      {group.name}
+                    </p>
+
+                    <p className="mt-1 text-sm text-slate-600">
+                      Ссылка: /g/{group.slug}
+                    </p>
+
+                    <p className="mt-1 text-sm text-slate-600">
+                      В архиве с: {getArchivedDateLabel(group.archived_at)}
+                    </p>
+
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => handleRestoreGroup(group)}
+                        disabled={isRestoringGroup}
+                        className="rounded-xl bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                      >
+                        {isRestoringGroup ? "..." : "Восстановить"}
+                      </button>
+
+                      <button
+                        onClick={() => handleCopyGroupLink(group)}
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+                      >
+                        Копировать ссылку
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {selectedGroup && (
             <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
