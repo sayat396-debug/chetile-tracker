@@ -398,7 +398,7 @@ export default function AdminPage() {
     setTransferEmail("");
     setEditingGroupId("");
     setMessage(
-      "Новый админ должен заранее зарегистрироваться через /admin. После передачи группа исчезнет из твоей админки."
+      "Новый админ должен заранее зарегистрироваться через /register. После передачи группа исчезнет из твоей админки."
     );
   }
 
@@ -676,33 +676,24 @@ export default function AdminPage() {
     await loadTasksAgain(task.group_id);
   }
 
-  async function handleSignUp() {
-    setIsSubmitting(true);
-    setMessage("");
+  async function handleSignIn() {
+    const cleanEmail = email.trim().toLowerCase();
 
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
-
-    setIsSubmitting(false);
-
-    if (error) {
-      setMessage(error.message);
+    if (!cleanEmail) {
+      setMessage("Введите email.");
       return;
     }
 
-    setMessage(
-      "Регистрация прошла. Если Supabase требует подтверждение email, проверь почту. Если подтверждение отключено — ты уже можешь войти."
-    );
-  }
+    if (!password) {
+      setMessage("Введите пароль.");
+      return;
+    }
 
-  async function handleSignIn() {
     setIsSubmitting(true);
     setMessage("");
 
     const { error } = await supabase.auth.signInWithPassword({
-      email,
+      email: cleanEmail,
       password,
     });
 
@@ -936,7 +927,7 @@ export default function AdminPage() {
 
                           <p className="text-sm text-slate-600">
                             Введи email нового админа. Он должен заранее
-                            зарегистрироваться через /admin.
+                            зарегистрироваться через /register.
                           </p>
 
                           <input
@@ -1340,8 +1331,7 @@ export default function AdminPage() {
         </h1>
 
         <p className="mb-6 text-slate-600">
-          Зарегистрируйся или войди, чтобы управлять группами, участниками и
-          задачами.
+          Войди, чтобы управлять группами, участниками и задачами.
         </p>
 
         <div className="space-y-4">
@@ -1368,7 +1358,7 @@ export default function AdminPage() {
               type="password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Минимум 6 символов"
+              placeholder="Введите пароль"
               className="w-full rounded-xl border border-slate-200 px-4 py-3 text-lg outline-none focus:border-slate-900"
             />
           </div>
@@ -1380,30 +1370,34 @@ export default function AdminPage() {
           </p>
         )}
 
-        <div className="mt-6 space-y-3">
-          <button
-            onClick={handleSignIn}
-            disabled={isSubmitting}
-            className="w-full rounded-xl bg-slate-900 px-4 py-3 text-lg font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-          >
-            {isSubmitting ? "Подождите..." : "Войти"}
-          </button>
+        <button
+          onClick={handleSignIn}
+          disabled={isSubmitting}
+          className="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 text-lg font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+        >
+          {isSubmitting ? "Входим..." : "Войти"}
+        </button>
 
-          <button
-            onClick={handleSignUp}
-            disabled={isSubmitting}
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-lg font-semibold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100"
-          >
-            Зарегистрироваться
-          </button>
+        <Link
+          href="/reset-password"
+          className="mt-4 block text-center text-sm font-medium text-slate-500 hover:text-slate-800"
+        >
+          Забыли пароль?
+        </Link>
 
-          <Link
-            href="/"
-            className="block w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-lg font-semibold text-slate-800 transition hover:bg-slate-50"
-          >
-            ← На главную
-          </Link>
-        </div>
+        <Link
+          href="/register"
+          className="mt-5 block w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-lg font-semibold text-slate-800 transition hover:bg-slate-50"
+        >
+          Создать аккаунт администратора
+        </Link>
+
+        <Link
+          href="/"
+          className="mt-3 block w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-lg font-semibold text-slate-800 transition hover:bg-slate-50"
+        >
+          ← На главную
+        </Link>
       </div>
     </main>
   );
