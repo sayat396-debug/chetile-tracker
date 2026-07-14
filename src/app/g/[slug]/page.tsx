@@ -11,6 +11,7 @@ type Member = {
   id: string;
   name: string;
   display_order: number | null;
+  has_pin: boolean | null;
 };
 
 type Task = {
@@ -27,6 +28,7 @@ type Group = {
   slug: string;
   week_start_day: number;
   created_at: string | null;
+  is_archived: boolean | null;
 };
 
 type EntryRow = {
@@ -199,6 +201,11 @@ export default function GroupPage() {
   const [saveMessage, setSaveMessage] = useState("");
 
   const [selectedMember, setSelectedMember] = useState<Member | null>(null);
+  const [pendingPinMember, setPendingPinMember] = useState<Member | null>(null);
+  const [pinCode, setPinCode] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [isVerifyingPin, setIsVerifyingPin] = useState(false);
+
   const [selectedWeekStartDate, setSelectedWeekStartDate] = useState("");
   const [selectedDay, setSelectedDay] = useState("");
   const [selectedTab, setSelectedTab] = useState<Tab>("mark");
@@ -246,7 +253,7 @@ export default function GroupPage() {
 
       const { data: groupData, error: groupError } = await supabase
         .from("groups")
-        .select("id, name, slug, week_start_day, created_at")
+        .select("id, name, slug, week_start_day, created_at, is_archived")
         .eq("slug", groupSlug)
         .single();
 
@@ -257,6 +264,11 @@ export default function GroupPage() {
       }
 
       setGroup(groupData);
+
+      if (groupData.is_archived) {
+        setIsLoading(false);
+        return;
+      }
 
       localStorage.setItem(
         "last-opened-group",
@@ -275,8 +287,8 @@ export default function GroupPage() {
       setSelectedDay(defaultDay);
 
       const { data: membersData, error: membersError } = await supabase
-        .from("group_members")
-        .select("id, name, display_order")
+        .from("group_members_public")
+        .select("id, name, display_order, has_pin")
         .eq("group_id", groupData.id)
         .eq("is_active", true)
         .order("display_order", { ascending: true });
@@ -296,9 +308,13 @@ export default function GroupPage() {
           (member) => member.id === savedMemberId
         );
 
-        if (savedMember) {
+        if (savedMember && !savedMember.has_pin) {
           setSelectedMember(savedMember);
           setSelectedTab("mark");
+        }
+
+        if (savedMember?.has_pin) {
+          localStorage.removeItem(selectedMemberStorageKey);
         }
       }
 
@@ -325,7 +341,7 @@ export default function GroupPage() {
 
   useEffect(() => {
     async function loadEntriesForSelectedWeek() {
-      if (!group || !selectedWeekStartDate) return;
+      if (!group || !selectedWeekStartDate || group.is_archived) return;
 
       const weekDays = getWeekDaysFromStart(selectedWeekStartDate);
       const weekStartDate = weekDays[0].date;
@@ -363,13 +379,71 @@ export default function GroupPage() {
   }, [entryKey, entries]);
 
   function handleSelectMember(member: Member) {
+    setSaveMessage("");
+    setPinError("");
+
+    if (member.has_pin) {
+      setPendingPinMember(member);
+      setPinCode("");
+      setSelectedMember(null);
+      localStorage.removeItem(selectedMemberStorageKey);
+      return;
+    }
+
     setSelectedMember(member);
+    setPendingPinMember(null);
     setSelectedTab("mark");
     localStorage.setItem(selectedMemberStorageKey, member.id);
   }
 
+  async function handleVerifyPin() {
+    if (!pendingPinMember) return;
+
+    const cleanPin = pinCode.trim();
+
+    if (!/^[0-9]{4,8}$/.test(cleanPin)) {
+      setPinError("Введите PIN-код из 4–8 цифр.");
+      return;
+    }
+
+    setIsVerifyingPin(true);
+    setPinError("");
+
+    const { data, error } = await supabase.rpc("verify_member_pin", {
+      p_member_id: pendingPinMember.id,
+      p_pin_code: cleanPin,
+    });
+
+    setIsVerifyingPin(false);
+
+    if (error) {
+      setPinError(error.message);
+      return;
+    }
+
+    if (!data) {
+      setPinError("Неверный PIN-код.");
+      return;
+    }
+
+    setSelectedMember(pendingPinMember);
+    setPendingPinMember(null);
+    setPinCode("");
+    setSelectedTab("mark");
+    localStorage.setItem(selectedMemberStorageKey, pendingPinMember.id);
+  }
+
+  function handleCancelPin() {
+    setPendingPinMember(null);
+    setPinCode("");
+    setPinError("");
+  }
+
   function handleBackToMembers() {
     setSelectedMember(null);
+    setPendingPinMember(null);
+    setPinCode("");
+    setPinError("");
     setSelectedTab("mark");
     setFormValues({});
     setSaveMessage("");
@@ -543,6 +617,90 @@ export default function GroupPage() {
     );
   }
 
+  if (group?.is_archived) {
+    return (
+      <main className="min-h-screen bg-slate-100 px-4 py-8">
+        <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
+          <h1 className="mb-2 text-2xl font-bold text-slate-900">
+            Группа в архиве
+          </h1>
+
+          <p className="text-slate-600">
+            Эта группа временно закрыта администратором. Отметки недоступны.
+          </p>
+
+          <Link
+            href="/"
+            className="mt-6 block w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-lg font-semibold text-slate-800 transition hover:bg-slate-50"
+          >
+            ← На главную
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
+  if (pendingPinMember && !selectedMember) {
+    return (
+      <main className="min-h-screen bg-slate-100 px-4 py-8">
+        <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
+          <p className="mb-2 text-sm font-medium text-slate-500">
+            Группа: {group?.name || groupSlug}
+          </p>
+
+          <h1 className="mb-2 text-2xl font-bold text-slate-900">
+            Введите PIN-код
+          </h1>
+
+          <p className="mb-5 text-slate-600">
+            Для участника {pendingPinMember.name} установлен PIN-код.
+          </p>
+
+          <input
+            type="password"
+            inputMode="numeric"
+            value={pinCode}
+            onChange={(event) => {
+              setPinCode(event.target.value);
+              setPinError("");
+            }}
+            placeholder="PIN-код"
+            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-lg outline-none focus:border-slate-900"
+          />
+
+          {pinError && (
+            <p className="mt-3 rounded-xl bg-red-50 p-3 text-sm font-medium text-red-700">
+              {pinError}
+            </p>
+          )}
+
+          <button
+            onClick={handleVerifyPin}
+            disabled={isVerifyingPin}
+            className="mt-5 w-full rounded-xl bg-slate-900 px-4 py-3 text-lg font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+          >
+            {isVerifyingPin ? "Проверяем..." : "Войти"}
+          </button>
+
+          <button
+            onClick={handleCancelPin}
+            disabled={isVerifyingPin}
+            className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-lg font-semibold text-slate-800 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100"
+          >
+            ← Выбрать другого участника
+          </button>
+
+          <Link
+            href="/"
+            className="mt-3 block w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-lg font-semibold text-slate-800 transition hover:bg-slate-50"
+          >
+            ← На главную
+          </Link>
+        </div>
+      </main>
+    );
+  }
+
   if (!selectedMember) {
     return (
       <main className="min-h-screen bg-slate-100 px-4 py-8">
@@ -566,7 +724,13 @@ export default function GroupPage() {
                 onClick={() => handleSelectMember(member)}
                 className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-left text-lg font-medium text-slate-800 transition hover:bg-slate-50"
               >
-                {member.name}
+                <span>{member.name}</span>
+
+                {member.has_pin && (
+                  <span className="ml-2 rounded-full bg-slate-100 px-2 py-1 text-xs font-semibold text-slate-500">
+                    PIN
+                  </span>
+                )}
               </button>
             ))}
           </div>

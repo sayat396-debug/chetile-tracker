@@ -21,6 +21,7 @@ type Member = {
   name: string;
   display_order: number | null;
   is_active: boolean | null;
+  has_pin: boolean | null;
 };
 
 type Task = {
@@ -64,6 +65,9 @@ export default function AdminPage() {
   const [editingMemberId, setEditingMemberId] = useState("");
   const [editMemberName, setEditMemberName] = useState("");
 
+  const [pinEditingMemberId, setPinEditingMemberId] = useState("");
+  const [pinValue, setPinValue] = useState("");
+
   const [newTaskName, setNewTaskName] = useState("");
   const [newTaskUnit, setNewTaskUnit] = useState("");
   const [newTaskWeeklyGoal, setNewTaskWeeklyGoal] = useState("");
@@ -88,6 +92,7 @@ export default function AdminPage() {
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [isUpdatingMember, setIsUpdatingMember] = useState(false);
   const [isDeletingMember, setIsDeletingMember] = useState(false);
+  const [isSavingPin, setIsSavingPin] = useState(false);
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isUpdatingTask, setIsUpdatingTask] = useState(false);
   const [isDeletingTask, setIsDeletingTask] = useState(false);
@@ -189,8 +194,8 @@ export default function AdminPage() {
       setIsTasksLoading(true);
 
       const { data: membersData, error: membersError } = await supabase
-        .from("group_members")
-        .select("id, group_id, name, display_order, is_active")
+        .from("group_members_public")
+        .select("id, group_id, name, display_order, is_active, has_pin")
         .eq("group_id", selectedGroupId)
         .order("display_order", { ascending: true });
 
@@ -363,8 +368,8 @@ export default function AdminPage() {
 
   async function loadMembersAgain(groupId: string) {
     const { data, error } = await supabase
-      .from("group_members")
-      .select("id, group_id, name, display_order, is_active")
+      .from("group_members_public")
+      .select("id, group_id, name, display_order, is_active, has_pin")
       .eq("group_id", groupId)
       .order("display_order", { ascending: true });
 
@@ -713,6 +718,8 @@ export default function AdminPage() {
   function handleStartEditMember(member: Member) {
     setEditingMemberId(member.id);
     setEditMemberName(member.name);
+    setPinEditingMemberId("");
+    setPinValue("");
     setMessage("");
   }
 
@@ -753,6 +760,80 @@ export default function AdminPage() {
 
     setMessage("Участник обновлён.");
     setIsUpdatingMember(false);
+  }
+
+  function handleStartEditPin(member: Member) {
+    setPinEditingMemberId(member.id);
+    setPinValue("");
+    setEditingMemberId("");
+    setMessage("");
+  }
+
+  function handleCancelEditPin() {
+    setPinEditingMemberId("");
+    setPinValue("");
+    setMessage("");
+  }
+
+  async function handleSaveMemberPin(member: Member) {
+    const cleanPin = pinValue.trim();
+
+    if (!/^[0-9]{4,8}$/.test(cleanPin)) {
+      setMessage("PIN-код должен состоять из 4–8 цифр.");
+      return;
+    }
+
+    setIsSavingPin(true);
+    setMessage("");
+
+    const { data, error } = await supabase.rpc("set_member_pin", {
+      p_member_id: member.id,
+      p_pin_code: cleanPin,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setIsSavingPin(false);
+      return;
+    }
+
+    await loadMembersAgain(member.group_id);
+
+    setPinEditingMemberId("");
+    setPinValue("");
+
+    setMessage(data || "PIN-код сохранён.");
+    setIsSavingPin(false);
+  }
+
+  async function handleRemoveMemberPin(member: Member) {
+    const isConfirmed = window.confirm(
+      `Убрать PIN-код у участника "${member.name}"? После этого он сможет заходить без PIN.`
+    );
+
+    if (!isConfirmed) return;
+
+    setIsSavingPin(true);
+    setMessage("");
+
+    const { data, error } = await supabase.rpc("set_member_pin", {
+      p_member_id: member.id,
+      p_pin_code: "",
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setIsSavingPin(false);
+      return;
+    }
+
+    await loadMembersAgain(member.group_id);
+
+    setPinEditingMemberId("");
+    setPinValue("");
+
+    setMessage(data || "PIN-код отключён.");
+    setIsSavingPin(false);
   }
 
   async function handleToggleMemberActive(member: Member) {
@@ -1036,6 +1117,7 @@ export default function AdminPage() {
 
   function renderMemberCard(member: Member) {
     const isEditingThisMember = editingMemberId === member.id;
+    const isEditingThisPin = pinEditingMemberId === member.id;
 
     return (
       <div
@@ -1069,12 +1151,56 @@ export default function AdminPage() {
               </button>
             </div>
           </div>
+        ) : isEditingThisPin ? (
+          <div className="space-y-3">
+            <div>
+              <p className="font-semibold text-slate-900">
+                PIN для {member.name}
+              </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Введите 4–8 цифр. Этот участник будет входить по PIN-коду.
+              </p>
+            </div>
+
+            <input
+              type="password"
+              inputMode="numeric"
+              value={pinValue}
+              onChange={(event) => setPinValue(event.target.value)}
+              placeholder="Например: 1234"
+              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
+            />
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => handleSaveMemberPin(member)}
+                disabled={isSavingPin}
+                className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+              >
+                {isSavingPin ? "Сохраняем..." : "Сохранить PIN"}
+              </button>
+
+              <button
+                onClick={handleCancelEditPin}
+                disabled={isSavingPin}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
         ) : (
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="font-semibold text-slate-900">{member.name}</p>
+
               <p className="text-xs text-slate-500">
                 {member.is_active ? "Активен" : "Отключён"}
+              </p>
+
+              <p className="text-xs text-slate-500">
+                PIN: {member.has_pin ? "включён" : "не установлен"}
               </p>
             </div>
 
@@ -1085,6 +1211,23 @@ export default function AdminPage() {
               >
                 Изменить
               </button>
+
+              <button
+                onClick={() => handleStartEditPin(member)}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+              >
+                {member.has_pin ? "Сменить PIN" : "Поставить PIN"}
+              </button>
+
+              {member.has_pin && (
+                <button
+                  onClick={() => handleRemoveMemberPin(member)}
+                  disabled={isSavingPin}
+                  className="rounded-lg border border-orange-200 bg-white px-3 py-2 text-xs font-semibold text-orange-700 transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:bg-orange-100"
+                >
+                  Убрать PIN
+                </button>
+              )}
 
               <button
                 onClick={() => handleToggleMemberActive(member)}
@@ -1520,6 +1663,8 @@ export default function AdminPage() {
                   setSelectedGroupId(event.target.value);
                   setEditingMemberId("");
                   setEditingTaskId("");
+                  setPinEditingMemberId("");
+                  setPinValue("");
                   setMessage("");
                 }}
                 className="mb-4 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base outline-none focus:border-slate-900"
