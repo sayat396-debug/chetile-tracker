@@ -47,6 +47,11 @@ export default function AdminPage() {
 
   const [selectedGroupId, setSelectedGroupId] = useState("");
 
+  const [editingGroupId, setEditingGroupId] = useState("");
+  const [editGroupName, setEditGroupName] = useState("");
+  const [editGroupSlug, setEditGroupSlug] = useState("");
+  const [editGroupWeekStartDay, setEditGroupWeekStartDay] = useState("6");
+
   const [newMemberName, setNewMemberName] = useState("");
   const [editingMemberId, setEditingMemberId] = useState("");
   const [editMemberName, setEditMemberName] = useState("");
@@ -67,6 +72,7 @@ export default function AdminPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCreatingGroup, setIsCreatingGroup] = useState(false);
+  const [isUpdatingGroup, setIsUpdatingGroup] = useState(false);
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [isUpdatingMember, setIsUpdatingMember] = useState(false);
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -200,19 +206,24 @@ export default function AdminPage() {
     }
   }
 
-  async function loadGroupsAgain() {
+  async function loadGroupsAgain(preferredSelectedGroupId?: string) {
     const { data, error } = await supabase
       .from("groups")
       .select("id, name, slug, week_start_day, created_at")
       .order("created_at", { ascending: false });
 
     if (error) {
-      setMessage("Группа создана, но список групп не обновился.");
+      setMessage("Список групп не обновился.");
       return;
     }
 
     const loadedGroups = data || [];
     setGroups(loadedGroups);
+
+    if (preferredSelectedGroupId) {
+      setSelectedGroupId(preferredSelectedGroupId);
+      return;
+    }
 
     if (loadedGroups.length > 0) {
       setSelectedGroupId(loadedGroups[0].id);
@@ -271,12 +282,16 @@ export default function AdminPage() {
     try {
       await ensureProfileExists(session);
 
-      const { error } = await supabase.from("groups").insert({
-        owner_id: session.user.id,
-        name: cleanName,
-        slug: cleanSlug,
-        week_start_day: Number(newGroupWeekStartDay),
-      });
+      const { data, error } = await supabase
+        .from("groups")
+        .insert({
+          owner_id: session.user.id,
+          name: cleanName,
+          slug: cleanSlug,
+          week_start_day: Number(newGroupWeekStartDay),
+        })
+        .select("id")
+        .single();
 
       if (error) {
         setMessage(error.message);
@@ -288,7 +303,7 @@ export default function AdminPage() {
       setNewGroupSlug("");
       setNewGroupWeekStartDay("6");
 
-      await loadGroupsAgain();
+      await loadGroupsAgain(data.id);
 
       setMessage("Группа создана.");
     } catch (error) {
@@ -297,6 +312,65 @@ export default function AdminPage() {
     }
 
     setIsCreatingGroup(false);
+  }
+
+  function handleStartEditGroup(group: Group) {
+    setEditingGroupId(group.id);
+    setEditGroupName(group.name);
+    setEditGroupSlug(group.slug);
+    setEditGroupWeekStartDay(String(group.week_start_day));
+    setMessage("");
+  }
+
+  function handleCancelEditGroup() {
+    setEditingGroupId("");
+    setEditGroupName("");
+    setEditGroupSlug("");
+    setEditGroupWeekStartDay("6");
+    setMessage("");
+  }
+
+  async function handleSaveGroupEdit(group: Group) {
+    const cleanName = editGroupName.trim();
+    const cleanSlug = editGroupSlug.trim().toLowerCase();
+
+    if (!cleanName) {
+      setMessage("Введите название группы.");
+      return;
+    }
+
+    if (!cleanSlug) {
+      setMessage("Введите slug группы.");
+      return;
+    }
+
+    setIsUpdatingGroup(true);
+    setMessage("");
+
+    const { error } = await supabase
+      .from("groups")
+      .update({
+        name: cleanName,
+        slug: cleanSlug,
+        week_start_day: Number(editGroupWeekStartDay),
+      })
+      .eq("id", group.id);
+
+    if (error) {
+      setMessage(error.message);
+      setIsUpdatingGroup(false);
+      return;
+    }
+
+    await loadGroupsAgain(group.id);
+
+    setEditingGroupId("");
+    setEditGroupName("");
+    setEditGroupSlug("");
+    setEditGroupWeekStartDay("6");
+
+    setMessage("Настройки группы обновлены.");
+    setIsUpdatingGroup(false);
   }
 
   async function handleAddMember() {
@@ -709,45 +783,118 @@ export default function AdminPage() {
 
             {!isGroupsLoading && groups.length > 0 && (
               <div className="space-y-3">
-                {groups.map((group) => (
-                  <div
-                    key={group.id}
-                    className={`rounded-2xl border p-4 ${
-                      selectedGroupId === group.id
-                        ? "border-slate-900 bg-slate-50"
-                        : "border-slate-200 bg-slate-50"
-                    }`}
-                  >
-                    <p className="font-semibold text-slate-900">
-                      {group.name}
-                    </p>
+                {groups.map((group) => {
+                  const isEditingThisGroup = editingGroupId === group.id;
 
-                    <p className="mt-1 text-sm text-slate-600">
-                      Ссылка: /g/{group.slug}
-                    </p>
+                  return (
+                    <div
+                      key={group.id}
+                      className={`rounded-2xl border p-4 ${
+                        selectedGroupId === group.id
+                          ? "border-slate-900 bg-slate-50"
+                          : "border-slate-200 bg-slate-50"
+                      }`}
+                    >
+                      {isEditingThisGroup ? (
+                        <div className="space-y-3">
+                          <input
+                            value={editGroupName}
+                            onChange={(event) =>
+                              setEditGroupName(event.target.value)
+                            }
+                            placeholder="Название группы"
+                            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
+                          />
 
-                    <p className="mt-1 text-sm text-slate-600">
-                      Начало недели:{" "}
-                      {getWeekStartDayLabel(group.week_start_day)}
-                    </p>
+                          <input
+                            value={editGroupSlug}
+                            onChange={(event) =>
+                              setEditGroupSlug(event.target.value)
+                            }
+                            placeholder="slug"
+                            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
+                          />
 
-                    <div className="mt-4 grid grid-cols-2 gap-2">
-                      <button
-                        onClick={() => setSelectedGroupId(group.id)}
-                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
-                      >
-                        Настроить
-                      </button>
+                          <select
+                            value={editGroupWeekStartDay}
+                            onChange={(event) =>
+                              setEditGroupWeekStartDay(event.target.value)
+                            }
+                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base outline-none focus:border-slate-900"
+                          >
+                            <option value="1">Понедельник</option>
+                            <option value="2">Вторник</option>
+                            <option value="3">Среда</option>
+                            <option value="4">Четверг</option>
+                            <option value="5">Пятница</option>
+                            <option value="6">Суббота</option>
+                            <option value="0">Воскресенье</option>
+                          </select>
 
-                      <Link
-                        href={`/g/${group.slug}`}
-                        className="rounded-xl bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white transition hover:bg-slate-700"
-                      >
-                        Открыть
-                      </Link>
+                          <p className="text-xs text-slate-500">
+                            Новая ссылка будет: /g/{editGroupSlug || "slug"}
+                          </p>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={() => handleSaveGroupEdit(group)}
+                              disabled={isUpdatingGroup}
+                              className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                            >
+                              {isUpdatingGroup ? "Сохраняем..." : "Сохранить"}
+                            </button>
+
+                            <button
+                              onClick={handleCancelEditGroup}
+                              disabled={isUpdatingGroup}
+                              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                            >
+                              Отмена
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p className="font-semibold text-slate-900">
+                            {group.name}
+                          </p>
+
+                          <p className="mt-1 text-sm text-slate-600">
+                            Ссылка: /g/{group.slug}
+                          </p>
+
+                          <p className="mt-1 text-sm text-slate-600">
+                            Начало недели:{" "}
+                            {getWeekStartDayLabel(group.week_start_day)}
+                          </p>
+
+                          <div className="mt-4 grid grid-cols-3 gap-2">
+                            <button
+                              onClick={() => setSelectedGroupId(group.id)}
+                              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+                            >
+                              Настроить
+                            </button>
+
+                            <button
+                              onClick={() => handleStartEditGroup(group)}
+                              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
+                            >
+                              Изменить
+                            </button>
+
+                            <Link
+                              href={`/g/${group.slug}`}
+                              className="rounded-xl bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white transition hover:bg-slate-700"
+                            >
+                              Открыть
+                            </Link>
+                          </div>
+                        </>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
