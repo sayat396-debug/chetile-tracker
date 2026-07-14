@@ -87,8 +87,10 @@ export default function AdminPage() {
   const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [isUpdatingMember, setIsUpdatingMember] = useState(false);
+  const [isDeletingMember, setIsDeletingMember] = useState(false);
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isUpdatingTask, setIsUpdatingTask] = useState(false);
+  const [isDeletingTask, setIsDeletingTask] = useState(false);
 
   const [message, setMessage] = useState("");
 
@@ -367,7 +369,7 @@ export default function AdminPage() {
       .order("display_order", { ascending: true });
 
     if (error) {
-      setMessage("Участник добавлен, но список участников не обновился.");
+      setMessage("Список участников не обновился.");
       return;
     }
 
@@ -382,7 +384,7 @@ export default function AdminPage() {
       .order("display_order", { ascending: true });
 
     if (error) {
-      setMessage("Задача добавлена, но список задач не обновился.");
+      setMessage("Список задач не обновился.");
       return;
     }
 
@@ -767,6 +769,38 @@ export default function AdminPage() {
     await loadMembersAgain(member.group_id);
   }
 
+  async function handleDeleteInactiveMember(member: Member) {
+    const isConfirmed = window.confirm(
+      `Удалить участника "${member.name}" навсегда? Его отметки и история по этой группе будут удалены.`
+    );
+
+    if (!isConfirmed) return;
+
+    const secondConfirm = window.confirm(
+      `Точно удалить участника "${member.name}"? Это действие нельзя отменить.`
+    );
+
+    if (!secondConfirm) return;
+
+    setIsDeletingMember(true);
+    setMessage("");
+
+    const { data, error } = await supabase.rpc("delete_inactive_member", {
+      p_member_id: member.id,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setIsDeletingMember(false);
+      return;
+    }
+
+    await loadMembersAgain(member.group_id);
+
+    setMessage(data || "Участник удалён.");
+    setIsDeletingMember(false);
+  }
+
   async function handleAddTask() {
     const cleanName = newTaskName.trim();
     const cleanUnit = newTaskUnit.trim();
@@ -901,6 +935,38 @@ export default function AdminPage() {
     await loadTasksAgain(task.group_id);
   }
 
+  async function handleDeleteInactiveTask(task: Task) {
+    const isConfirmed = window.confirm(
+      `Удалить задачу "${task.name}" навсегда? Все отметки по этой задаче будут удалены.`
+    );
+
+    if (!isConfirmed) return;
+
+    const secondConfirm = window.confirm(
+      `Точно удалить задачу "${task.name}"? Это действие нельзя отменить.`
+    );
+
+    if (!secondConfirm) return;
+
+    setIsDeletingTask(true);
+    setMessage("");
+
+    const { data, error } = await supabase.rpc("delete_inactive_task", {
+      p_task_id: task.id,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setIsDeletingTask(false);
+      return;
+    }
+
+    await loadTasksAgain(task.group_id);
+
+    setMessage(data || "Задача удалена.");
+    setIsDeletingTask(false);
+  }
+
   async function handleSignIn() {
     const cleanEmail = email.trim().toLowerCase();
 
@@ -1026,6 +1092,16 @@ export default function AdminPage() {
               >
                 {member.is_active ? "Отключить" : "Включить"}
               </button>
+
+              {!member.is_active && (
+                <button
+                  onClick={() => handleDeleteInactiveMember(member)}
+                  disabled={isDeletingMember}
+                  className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:bg-red-100"
+                >
+                  {isDeletingMember ? "..." : "Удалить"}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -1114,6 +1190,16 @@ export default function AdminPage() {
               >
                 {task.is_active ? "Отключить" : "Включить"}
               </button>
+
+              {!task.is_active && (
+                <button
+                  onClick={() => handleDeleteInactiveTask(task)}
+                  disabled={isDeletingTask}
+                  className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:bg-red-100"
+                >
+                  {isDeletingTask ? "..." : "Удалить"}
+                </button>
+              )}
             </div>
           </div>
         )}
