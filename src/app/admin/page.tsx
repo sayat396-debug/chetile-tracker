@@ -86,6 +86,7 @@ export default function AdminPage() {
   const [isTransferringGroup, setIsTransferringGroup] = useState(false);
   const [isArchivingGroup, setIsArchivingGroup] = useState(false);
   const [isRestoringGroup, setIsRestoringGroup] = useState(false);
+  const [isDeletingGroup, setIsDeletingGroup] = useState(false);
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [isUpdatingMember, setIsUpdatingMember] = useState(false);
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -550,6 +551,38 @@ export default function AdminPage() {
 
     setMessage("Группа восстановлена из архива.");
     setIsRestoringGroup(false);
+  }
+
+  async function handleDeleteArchivedGroup(group: Group) {
+    const isConfirmed = window.confirm(
+      `Удалить группу "${group.name}" навсегда? Будут удалены участники, задачи, отметки и история. Это действие нельзя отменить.`
+    );
+
+    if (!isConfirmed) return;
+
+    const secondConfirm = window.confirm(
+      `Точно удалить "${group.name}"? Восстановить данные после удаления уже не получится.`
+    );
+
+    if (!secondConfirm) return;
+
+    setIsDeletingGroup(true);
+    setMessage("");
+
+    const { data, error } = await supabase.rpc("delete_archived_group", {
+      p_group_id: group.id,
+    });
+
+    if (error) {
+      setMessage(error.message);
+      setIsDeletingGroup(false);
+      return;
+    }
+
+    await loadGroupsAgain();
+
+    setMessage(data || "Группа удалена.");
+    setIsDeletingGroup(false);
   }
 
   async function handleAddMember() {
@@ -1274,16 +1307,6 @@ export default function AdminPage() {
                           </div>
 
                           <div className="mt-4 grid grid-cols-2 gap-2">
-                            <button
-                              onClick={() => {
-                                setSelectedGroupId(group.id);
-                                setManagementTab("members");
-                              }}
-                              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
-                            >
-                              Управлять
-                            </button>
-
                             <Link
                               href={`/g/${group.slug}`}
                               className="rounded-xl bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white transition hover:bg-slate-700"
@@ -1308,9 +1331,9 @@ export default function AdminPage() {
                             <button
                               onClick={() => handleArchiveGroup(group)}
                               disabled={isArchivingGroup}
-                              className="col-span-2 rounded-xl border border-orange-200 bg-white px-3 py-2 text-center text-sm font-semibold text-orange-700 transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:bg-orange-100"
+                              className="rounded-xl border border-orange-200 bg-white px-3 py-2 text-center text-sm font-semibold text-orange-700 transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:bg-orange-100"
                             >
-                              {isArchivingGroup ? "Отправляем..." : "В архив"}
+                              {isArchivingGroup ? "..." : "В архив"}
                             </button>
                           </div>
                         </>
@@ -1329,8 +1352,7 @@ export default function AdminPage() {
               </h2>
 
               <p className="mb-4 text-sm text-slate-600">
-                Здесь отдельно настраиваются участники и задачи. Так админка не
-                растягивается в одну большую страницу.
+                Выбери группу и настрой участников или задачи.
               </p>
 
               <label className="mb-1 block text-sm font-medium text-slate-700">
@@ -1532,13 +1554,23 @@ export default function AdminPage() {
                       В архиве с: {getArchivedDateLabel(group.archived_at)}
                     </p>
 
-                    <button
-                      onClick={() => handleRestoreGroup(group)}
-                      disabled={isRestoringGroup}
-                      className="mt-4 w-full rounded-xl bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-                    >
-                      {isRestoringGroup ? "Восстанавливаем..." : "Восстановить"}
-                    </button>
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => handleRestoreGroup(group)}
+                        disabled={isRestoringGroup}
+                        className="rounded-xl bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                      >
+                        {isRestoringGroup ? "..." : "Восстановить"}
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteArchivedGroup(group)}
+                        disabled={isDeletingGroup}
+                        className="rounded-xl border border-red-200 bg-white px-3 py-2 text-center text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:bg-red-100"
+                      >
+                        {isDeletingGroup ? "..." : "Удалить"}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
