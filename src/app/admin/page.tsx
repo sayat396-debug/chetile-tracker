@@ -49,14 +49,12 @@ export default function AdminPage() {
   const [managementTab, setManagementTab] = useState<ManagementTab>("members");
 
   const [newGroupName, setNewGroupName] = useState("");
-  const [newGroupSlug, setNewGroupSlug] = useState("");
   const [newGroupWeekStartDay, setNewGroupWeekStartDay] = useState("6");
 
   const [selectedGroupId, setSelectedGroupId] = useState("");
 
   const [editingGroupId, setEditingGroupId] = useState("");
   const [editGroupName, setEditGroupName] = useState("");
-  const [editGroupSlug, setEditGroupSlug] = useState("");
   const [editGroupWeekStartDay, setEditGroupWeekStartDay] = useState("6");
 
   const [transferringGroupId, setTransferringGroupId] = useState("");
@@ -220,21 +218,93 @@ export default function AdminPage() {
     loadMembersAndTasks();
   }, [selectedGroupId]);
 
-  function makeSlugFromName(name: string) {
-    return name
+  function transliterate(text: string) {
+    const map: Record<string, string> = {
+      а: "a",
+      б: "b",
+      в: "v",
+      г: "g",
+      д: "d",
+      е: "e",
+      ё: "e",
+      ж: "zh",
+      з: "z",
+      и: "i",
+      й: "y",
+      к: "k",
+      л: "l",
+      м: "m",
+      н: "n",
+      о: "o",
+      п: "p",
+      р: "r",
+      с: "s",
+      т: "t",
+      у: "u",
+      ф: "f",
+      х: "h",
+      ц: "ts",
+      ч: "ch",
+      ш: "sh",
+      щ: "sch",
+      ъ: "",
+      ы: "y",
+      ь: "",
+      э: "e",
+      ю: "yu",
+      я: "ya",
+      қ: "k",
+      ғ: "g",
+      ә: "a",
+      ң: "n",
+      ө: "o",
+      ұ: "u",
+      ү: "u",
+      һ: "h",
+      і: "i",
+    };
+
+    return text
       .toLowerCase()
-      .trim()
-      .replaceAll(" ", "-")
-      .replace(/[^a-z0-9а-яё-]/gi, "")
-      .replaceAll("ё", "е");
+      .split("")
+      .map((char) => map[char] ?? char)
+      .join("");
   }
 
-  function handleNewGroupNameChange(value: string) {
-    setNewGroupName(value);
+  function makeSlugFromName(name: string) {
+    const baseSlug = transliterate(name)
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 40);
 
-    if (!newGroupSlug) {
-      setNewGroupSlug(makeSlugFromName(value));
+    return baseSlug || "group";
+  }
+
+  async function makeUniqueSlug(name: string) {
+    const baseSlug = makeSlugFromName(name);
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const randomPart = Math.random().toString(36).slice(2, 6);
+      const candidate = `${baseSlug}-${randomPart}`;
+
+      const { data, error } = await supabase
+        .from("groups")
+        .select("id")
+        .eq("slug", candidate)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+
+      if (!data) {
+        return candidate;
+      }
     }
+
+    return `${baseSlug}-${Date.now().toString(36)}`;
   }
 
   async function ensureProfileExists(currentSession: Session) {
@@ -323,15 +393,9 @@ export default function AdminPage() {
     if (!session) return;
 
     const cleanName = newGroupName.trim();
-    const cleanSlug = newGroupSlug.trim().toLowerCase();
 
     if (!cleanName) {
       setMessage("Введите название группы.");
-      return;
-    }
-
-    if (!cleanSlug) {
-      setMessage("Введите slug группы.");
       return;
     }
 
@@ -341,12 +405,14 @@ export default function AdminPage() {
     try {
       await ensureProfileExists(session);
 
+      const autoSlug = await makeUniqueSlug(cleanName);
+
       const { data, error } = await supabase
         .from("groups")
         .insert({
           owner_id: session.user.id,
           name: cleanName,
-          slug: cleanSlug,
+          slug: autoSlug,
           week_start_day: Number(newGroupWeekStartDay),
           is_archived: false,
           archived_at: null,
@@ -361,16 +427,15 @@ export default function AdminPage() {
       }
 
       setNewGroupName("");
-      setNewGroupSlug("");
       setNewGroupWeekStartDay("6");
       setIsCreateGroupOpen(false);
 
       await loadGroupsAgain(data.id);
 
-      setMessage("Группа создана.");
+      setMessage("Группа создана. Ссылка сформирована автоматически.");
     } catch (error) {
       console.error(error);
-      setMessage("Не удалось создать группу. Проверь profiles и RLS policies.");
+      setMessage("Не удалось создать группу. Проверь RLS policies и slug.");
     }
 
     setIsCreatingGroup(false);
@@ -379,7 +444,6 @@ export default function AdminPage() {
   function handleStartEditGroup(group: Group) {
     setEditingGroupId(group.id);
     setEditGroupName(group.name);
-    setEditGroupSlug(group.slug);
     setEditGroupWeekStartDay(String(group.week_start_day));
     setTransferringGroupId("");
     setTransferEmail("");
@@ -389,22 +453,15 @@ export default function AdminPage() {
   function handleCancelEditGroup() {
     setEditingGroupId("");
     setEditGroupName("");
-    setEditGroupSlug("");
     setEditGroupWeekStartDay("6");
     setMessage("");
   }
 
   async function handleSaveGroupEdit(group: Group) {
     const cleanName = editGroupName.trim();
-    const cleanSlug = editGroupSlug.trim().toLowerCase();
 
     if (!cleanName) {
       setMessage("Введите название группы.");
-      return;
-    }
-
-    if (!cleanSlug) {
-      setMessage("Введите slug группы.");
       return;
     }
 
@@ -415,7 +472,6 @@ export default function AdminPage() {
       .from("groups")
       .update({
         name: cleanName,
-        slug: cleanSlug,
         week_start_day: Number(editGroupWeekStartDay),
       })
       .eq("id", group.id);
@@ -430,10 +486,9 @@ export default function AdminPage() {
 
     setEditingGroupId("");
     setEditGroupName("");
-    setEditGroupSlug("");
     setEditGroupWeekStartDay("6");
 
-    setMessage("Настройки группы обновлены.");
+    setMessage("Настройки группы обновлены. Ссылка группы не изменилась.");
     setIsUpdatingGroup(false);
   }
 
@@ -1086,28 +1141,13 @@ export default function AdminPage() {
 
                   <input
                     value={newGroupName}
-                    onChange={(event) =>
-                      handleNewGroupNameChange(event.target.value)
-                    }
+                    onChange={(event) => setNewGroupName(event.target.value)}
                     placeholder="Например: Четиле 2"
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-lg outline-none focus:border-slate-900"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Slug для ссылки
-                  </label>
-
-                  <input
-                    value={newGroupSlug}
-                    onChange={(event) => setNewGroupSlug(event.target.value)}
-                    placeholder="Например: chetile-2"
                     className="w-full rounded-xl border border-slate-200 px-4 py-3 text-lg outline-none focus:border-slate-900"
                   />
 
                   <p className="mt-1 text-xs text-slate-500">
-                    Ссылка будет такой: /g/{newGroupSlug || "slug"}
+                    Ссылка группы создастся автоматически.
                   </p>
                 </div>
 
@@ -1193,15 +1233,6 @@ export default function AdminPage() {
                             className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
                           />
 
-                          <input
-                            value={editGroupSlug}
-                            onChange={(event) =>
-                              setEditGroupSlug(event.target.value)
-                            }
-                            placeholder="slug"
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
-                          />
-
                           <select
                             value={editGroupWeekStartDay}
                             onChange={(event) =>
@@ -1219,7 +1250,8 @@ export default function AdminPage() {
                           </select>
 
                           <p className="text-xs text-slate-500">
-                            Новая ссылка будет: /g/{editGroupSlug || "slug"}
+                            Ссылка группы не меняется, чтобы участники не
+                            потеряли доступ.
                           </p>
 
                           <div className="grid grid-cols-2 gap-2">

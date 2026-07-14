@@ -184,7 +184,7 @@ function convertEntriesRowsToState(rows: EntryRow[]) {
 
 export default function GroupPage() {
   const params = useParams();
-  const groupSlug = String(params.slug);
+  const groupSlug = decodeURIComponent(String(params.slug));
 
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
