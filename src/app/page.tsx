@@ -47,7 +47,6 @@ export default function HomePage() {
           }
         } catch {
           localStorage.removeItem(LAST_OPENED_GROUP_KEY);
-          setLastOpenedGroup(null);
         }
       }
 
@@ -55,7 +54,22 @@ export default function HomePage() {
       setSession(data.session);
 
       if (data.session) {
-        await loadAdminGroups(data.session);
+        setIsGroupsLoading(true);
+
+        const { data: groupsData, error } = await supabase
+          .from("groups")
+          .select("id, name, slug, is_archived, created_at")
+          .eq("owner_id", data.session.user.id)
+          .eq("is_archived", false)
+          .order("created_at", { ascending: false });
+
+        setIsGroupsLoading(false);
+
+        if (error) {
+          setMessage("Не удалось загрузить ваши группы.");
+        } else {
+          setAdminGroups(groupsData || []);
+        }
       }
 
       setIsLoading(false);
@@ -65,14 +79,8 @@ export default function HomePage() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, newSession) => {
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
-
-      if (newSession) {
-        await loadAdminGroups(newSession);
-      } else {
-        setAdminGroups([]);
-      }
     });
 
     return () => {
@@ -80,40 +88,10 @@ export default function HomePage() {
     };
   }, []);
 
-  async function loadAdminGroups(currentSession: Session) {
-    setIsGroupsLoading(true);
-
-    const { data: groupsData, error } = await supabase
-      .from("groups")
-      .select("id, name, slug, is_archived, created_at")
-      .eq("owner_id", currentSession.user.id)
-      .eq("is_archived", false)
-      .order("created_at", { ascending: false });
-
-    setIsGroupsLoading(false);
-
-    if (error) {
-      setMessage("Не удалось загрузить ваши группы.");
-      return;
-    }
-
-    setAdminGroups(groupsData || []);
-  }
-
-  function clearLastOpenedGroup() {
-    localStorage.removeItem(LAST_OPENED_GROUP_KEY);
-    setLastOpenedGroup(null);
-    setMessage("Группа убрана с главной страницы.");
-  }
-
   async function handleSignOut() {
     await supabase.auth.signOut();
-
-    localStorage.removeItem(LAST_OPENED_GROUP_KEY);
-
     setSession(null);
     setAdminGroups([]);
-    setLastOpenedGroup(null);
     setMessage("Вы вышли из аккаунта администратора.");
   }
 
@@ -201,21 +179,12 @@ export default function HomePage() {
             </p>
 
             {lastOpenedGroup && (
-              <div className="mb-4">
-                <Link
-                  href={`/g/${lastOpenedGroup.slug}`}
-                  className="block w-full rounded-xl bg-slate-900 px-4 py-3 text-center text-lg font-semibold text-white transition hover:bg-slate-700"
-                >
-                  Открыть группу «{lastOpenedGroup.name}»
-                </Link>
-
-                <button
-                  onClick={clearLastOpenedGroup}
-                  className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-base font-semibold text-slate-700 transition hover:bg-slate-50"
-                >
-                  Убрать эту группу с главной
-                </button>
-              </div>
+              <Link
+                href={`/g/${lastOpenedGroup.slug}`}
+                className="mb-3 block w-full rounded-xl bg-slate-900 px-4 py-3 text-center text-lg font-semibold text-white transition hover:bg-slate-700"
+              >
+                Открыть группу «{lastOpenedGroup.name}»
+              </Link>
             )}
 
             {!lastOpenedGroup && (
