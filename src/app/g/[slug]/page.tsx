@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 
 const dayNames = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
@@ -256,6 +257,15 @@ export default function GroupPage() {
       }
 
       setGroup(groupData);
+
+      localStorage.setItem(
+        "last-opened-group",
+        JSON.stringify({
+          name: groupData.name,
+          slug: groupData.slug,
+          savedAt: new Date().toISOString(),
+        })
+      );
 
       const currentWeekStart = getCurrentWeekStartDate(groupData.week_start_day);
       const currentWeekStartKey = toDateKey(currentWeekStart);
@@ -514,11 +524,20 @@ export default function GroupPage() {
       <main className="min-h-screen bg-slate-100 px-4 py-8">
         <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
           <h1 className="mb-2 text-xl font-bold text-red-700">Ошибка</h1>
+
           <p className="text-slate-700">{errorMessage}</p>
+
           <p className="mt-4 text-sm text-slate-500">
             Проверь .env.local, RLS policies и данные группы {groupSlug} в
             Supabase.
           </p>
+
+          <Link
+            href="/"
+            className="mt-6 block w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-lg font-semibold text-slate-800 transition hover:bg-slate-50"
+          >
+            ← На главную
+          </Link>
         </div>
       </main>
     );
@@ -551,6 +570,13 @@ export default function GroupPage() {
               </button>
             ))}
           </div>
+
+          <Link
+            href="/"
+            className="mt-6 block w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-lg font-semibold text-slate-800 transition hover:bg-slate-50"
+          >
+            ← На главную
+          </Link>
         </div>
       </main>
     );
@@ -566,6 +592,13 @@ export default function GroupPage() {
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-8">
       <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
+        <Link
+          href="/"
+          className="mb-3 block text-sm font-medium text-slate-500 hover:text-slate-800"
+        >
+          ← На главную
+        </Link>
+
         <button
           onClick={handleBackToMembers}
           className="mb-4 text-sm font-medium text-slate-500 hover:text-slate-800"

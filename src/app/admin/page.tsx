@@ -389,6 +389,36 @@ export default function AdminPage() {
     setTasks(data || []);
   }
 
+  function getGroupLink(group: Group) {
+    if (typeof window === "undefined") {
+      return `/g/${group.slug}`;
+    }
+
+    return `${window.location.origin}/g/${group.slug}`;
+  }
+
+  async function handleShareGroup(group: Group) {
+    const groupLink = getGroupLink(group);
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: group.name,
+          text: `Открой группу «${group.name}» в недельном трекере`,
+          url: groupLink,
+        });
+
+        setMessage("Ссылка отправлена.");
+        return;
+      }
+
+      await navigator.clipboard.writeText(groupLink);
+      setMessage(`Ссылка скопирована: ${groupLink}`);
+    } catch {
+      setMessage(`Ссылка группы: ${groupLink}`);
+    }
+  }
+
   async function handleCreateGroup() {
     if (!session) return;
 
@@ -1325,7 +1355,14 @@ export default function AdminPage() {
                                 /g/{group.slug}
                               </p>
 
-                              <p className="mt-1 text-sm text-slate-600">
+                              <button
+                                onClick={() => handleShareGroup(group)}
+                                className="mt-2 text-sm font-semibold text-slate-700 underline underline-offset-4 hover:text-slate-900"
+                              >
+                                Поделиться ссылкой
+                              </button>
+
+                              <p className="mt-2 text-sm text-slate-600">
                                 Начало недели:{" "}
                                 {getWeekStartDayLabel(group.week_start_day)}
                               </p>
