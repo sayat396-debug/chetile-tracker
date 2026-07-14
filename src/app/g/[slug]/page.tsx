@@ -149,9 +149,23 @@ function getWeekOptions(
     const endDate = new Date(startDate);
     endDate.setDate(startDate.getDate() + 6);
 
+    const dateLabel = `${formatDisplayDate(startDate)}–${formatDisplayDate(
+      endDate
+    )}`;
+
+    let label = dateLabel;
+
+    if (index === 0) {
+      label = `Текущая неделя: ${dateLabel}`;
+    }
+
+    if (index === 1) {
+      label = `Прошлая неделя: ${dateLabel}`;
+    }
+
     options.push({
       value: startDateKey,
-      label: `${formatDisplayDate(startDate)}–${formatDisplayDate(endDate)}`,
+      label,
     });
   }
 
