@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -9,39 +9,39 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("");
   const [repeatPassword, setRepeatPassword] = useState("");
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const [isError, setIsError] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  async function handleSignUp() {
+  async function handleRegister(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    setMessage("");
+    setIsError(false);
+
     const cleanEmail = email.trim().toLowerCase();
 
     if (!cleanEmail) {
+      setIsError(true);
       setMessage("Введите email.");
       return;
     }
 
-    if (!password) {
-      setMessage("Введите пароль.");
-      return;
-    }
-
     if (password.length < 6) {
-      setMessage("Пароль должен быть минимум 6 символов.");
+      setIsError(true);
+      setMessage("Пароль должен содержать не менее 6 символов.");
       return;
     }
 
     if (password !== repeatPassword) {
+      setIsError(true);
       setMessage("Пароли не совпадают.");
       return;
     }
 
-    setIsSubmitting(true);
-    setMessage("");
+    setIsLoading(true);
 
-    const emailRedirectTo =
-      typeof window !== "undefined"
-        ? `${window.location.origin}/admin`
-        : "https://chetile-tracker.vercel.app/admin";
+    const emailRedirectTo = `${window.location.origin}/admin`;
 
     const { error } = await supabase.auth.signUp({
       email: cleanEmail,
@@ -51,109 +51,149 @@ export default function RegisterPage() {
       },
     });
 
-    setIsSubmitting(false);
+    setIsLoading(false);
 
     if (error) {
+      setIsError(true);
       setMessage(error.message);
       return;
     }
 
+    setIsError(false);
+    setMessage(
+      "Аккаунт создан. Проверьте электронную почту и подтвердите регистрацию."
+    );
+
     setEmail("");
     setPassword("");
     setRepeatPassword("");
-
-    setMessage(
-      "Регистрация прошла. Если Supabase требует подтверждение email, проверь почту. Если подтверждение отключено — можешь сразу войти."
-    );
   }
 
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-8">
       <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
-        <p className="mb-2 text-sm font-medium text-slate-500">
-          Регистрация администратора
+        <Link
+          href="/"
+          className="text-sm font-semibold text-slate-500 transition hover:text-slate-900"
+        >
+          ← На главную
+        </Link>
+
+        <p className="mt-6 text-sm font-semibold tracking-wide text-slate-500">
+          QADAMTRACK
         </p>
 
-        <h1 className="mb-2 text-2xl font-bold text-slate-900">
-          Создать аккаунт
+        <h1 className="mt-2 text-2xl font-bold text-slate-900">
+          Создание аккаунта
         </h1>
 
-        <p className="mb-6 text-slate-600">
-          Зарегистрируйся, чтобы создавать группы и управлять участниками,
-          задачами и недельными нормами.
+        <p className="mt-2 text-slate-600">
+          Зарегистрируйтесь как администратор, чтобы создавать группы,
+          добавлять участников и настраивать цели.
         </p>
 
-        <div className="space-y-4">
+        <form onSubmit={handleRegister} className="mt-6 space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="email"
+              className="mb-2 block text-sm font-semibold text-slate-700"
+            >
               Email
             </label>
 
             <input
+              id="email"
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder="example@mail.com"
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-lg outline-none focus:border-slate-900"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-slate-900"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="password"
+              className="mb-2 block text-sm font-semibold text-slate-700"
+            >
               Пароль
             </label>
 
             <input
+              id="password"
               type="password"
+              autoComplete="new-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Минимум 6 символов"
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-lg outline-none focus:border-slate-900"
+              placeholder="Не менее 6 символов"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-slate-900"
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="repeatPassword"
+              className="mb-2 block text-sm font-semibold text-slate-700"
+            >
               Повторите пароль
             </label>
 
             <input
+              id="repeatPassword"
               type="password"
+              autoComplete="new-password"
               value={repeatPassword}
               onChange={(event) => setRepeatPassword(event.target.value)}
-              placeholder="Повторите пароль"
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-lg outline-none focus:border-slate-900"
+              placeholder="Введите пароль ещё раз"
+              className="w-full rounded-xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-slate-900"
             />
           </div>
-        </div>
+
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full rounded-xl bg-slate-900 px-4 py-3 text-lg font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {isLoading ? "Создаём аккаунт..." : "Создать аккаунт"}
+          </button>
+        </form>
 
         {message && (
-          <p className="mt-4 rounded-xl bg-slate-100 p-3 text-sm font-medium text-slate-700">
+          <div
+            className={`mt-4 rounded-xl p-3 text-sm font-medium ${
+              isError
+                ? "bg-red-50 text-red-700"
+                : "bg-green-50 text-green-700"
+            }`}
+          >
             {message}
-          </p>
+          </div>
         )}
 
-        <button
-          onClick={handleSignUp}
-          disabled={isSubmitting}
-          className="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 text-lg font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-        >
-          {isSubmitting ? "Регистрируем..." : "Зарегистрироваться"}
-        </button>
+        <div className="mt-6 border-t border-slate-200 pt-5">
+          <p className="text-center text-sm text-slate-600">
+            Уже зарегистрированы?
+          </p>
 
-        <Link
-          href="/admin"
-          className="mt-3 block w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-lg font-semibold text-slate-800 transition hover:bg-slate-50"
-        >
-          Уже есть аккаунт? Войти
-        </Link>
+          <Link
+            href="/admin"
+            className="mt-3 block w-full rounded-xl border border-slate-200 px-4 py-3 text-center font-semibold text-slate-800 transition hover:bg-slate-50"
+          >
+            Войти как администратор
+          </Link>
 
-        <Link
-          href="/reset-password"
-          className="mt-3 block text-center text-sm font-medium text-slate-500 hover:text-slate-800"
-        >
-          Забыли пароль?
-        </Link>
+          <Link
+            href="/reset-password"
+            className="mt-3 block text-center text-sm font-semibold text-slate-600 transition hover:text-slate-900"
+          >
+            Восстановить пароль
+          </Link>
+        </div>
+
+        <p className="mt-6 text-center text-xs text-slate-400">
+          QadamTrack — двигайтесь к цели вместе
+        </p>
       </div>
     </main>
   );

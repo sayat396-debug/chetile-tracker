@@ -130,19 +130,20 @@ export default function HomePage() {
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-8">
       <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
-        <p className="mb-2 text-sm font-medium text-slate-500">Версия 2.0</p>
+        <p className="mb-2 text-sm font-semibold tracking-wide text-slate-500">
+          ГРУППОВОЙ ТРЕКЕР ЦЕЛЕЙ
+        </p>
 
-        <h1 className="mb-2 text-2xl font-bold text-slate-900">
-          Недельный трекер
+        <h1 className="mb-2 text-3xl font-bold text-slate-900">
+          QadamTrack
         </h1>
+
+        <p className="mb-6 text-slate-600">
+          Двигайтесь к цели вместе, шаг за шагом.
+        </p>
 
         {session ? (
           <>
-            <p className="mb-4 text-slate-600">
-              Вы вошли как администратор. Ниже отображаются ваши активные
-              группы.
-            </p>
-
             <div className="mb-5 rounded-2xl border border-green-200 bg-green-50 p-4 text-green-900">
               <p className="text-sm">Аккаунт администратора:</p>
               <p className="mt-1 font-semibold">{session.user.email}</p>
@@ -156,6 +157,8 @@ export default function HomePage() {
 
             {!isGroupsLoading && adminGroups.length > 0 && (
               <div className="mb-5 space-y-3">
+                <p className="font-semibold text-slate-900">Ваши группы</p>
+
                 {adminGroups.map((group) => (
                   <Link
                     key={group.id}
@@ -173,6 +176,7 @@ export default function HomePage() {
                 <p className="font-semibold text-slate-900">
                   У вас пока нет активных групп
                 </p>
+
                 <p className="mt-1 text-sm text-slate-600">
                   Создайте группу в админ-панели или восстановите её из архива.
                 </p>
@@ -195,9 +199,9 @@ export default function HomePage() {
           </>
         ) : (
           <>
-            <p className="mb-6 text-slate-600">
-              Откройте ссылку группы, которую вам отправил администратор, или
-              войдите как администратор.
+            <p className="mb-5 text-slate-600">
+              Откройте ссылку своей группы или войдите как администратор, чтобы
+              создать и настроить новую группу.
             </p>
 
             {lastOpenedGroup && (
@@ -223,6 +227,7 @@ export default function HomePage() {
                 <p className="font-semibold text-slate-900">
                   Группа пока не выбрана
                 </p>
+
                 <p className="mt-1 text-sm text-slate-600">
                   После перехода по ссылке группы она появится здесь.
                 </p>
@@ -250,6 +255,10 @@ export default function HomePage() {
             {message}
           </p>
         )}
+
+        <p className="mt-6 text-center text-xs text-slate-400">
+          QadamTrack
+        </p>
       </div>
     </main>
   );

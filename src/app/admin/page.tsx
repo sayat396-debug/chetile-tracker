@@ -411,7 +411,7 @@ export default function AdminPage() {
       if (navigator.share) {
         await navigator.share({
           title: group.name,
-          text: `Открой группу «${group.name}» в недельном трекере`,
+          text: `Откройте группу «${group.name}» в QadamTrack`,
           url: groupLink,
         });
 
@@ -534,7 +534,7 @@ export default function AdminPage() {
     setTransferEmail("");
     setEditingGroupId("");
     setMessage(
-      "Новый админ должен заранее зарегистрироваться через /register. После передачи группа исчезнет из твоей админки."
+      "Новый администратор должен заранее зарегистрироваться через /register. После передачи группа исчезнет из вашей админ-панели."
     );
   }
 
@@ -553,7 +553,7 @@ export default function AdminPage() {
     }
 
     const isConfirmed = window.confirm(
-      `Передать группу "${group.name}" пользователю ${cleanEmail}? После передачи эта группа исчезнет из твоей админки.`
+      `Передать группу "${group.name}" пользователю ${cleanEmail}? После передачи эта группа исчезнет из вашей админ-панели.`
     );
 
     if (!isConfirmed) return;
@@ -1084,7 +1084,7 @@ export default function AdminPage() {
     setGroups([]);
     setMembers([]);
     setTasks([]);
-    setMessage("Ты вышел из админ-панели.");
+    setMessage("Вы вышли из админ-панели.");
   }
 
   function getWeekStartDayLabel(day: number) {
@@ -1354,7 +1354,11 @@ export default function AdminPage() {
     return (
       <main className="min-h-screen bg-slate-100 px-4 py-8">
         <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
-          <p className="text-slate-600">Проверяем вход...</p>
+          <p className="text-sm font-semibold tracking-wide text-slate-500">
+            QADAMTRACK
+          </p>
+
+          <p className="mt-4 text-slate-600">Проверяем вход...</p>
         </div>
       </main>
     );
@@ -1364,8 +1368,8 @@ export default function AdminPage() {
     return (
       <main className="min-h-screen bg-slate-100 px-4 py-8">
         <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
-          <p className="mb-2 text-sm font-medium text-slate-500">
-            Админ-панель / Версия 2.0
+          <p className="mb-2 text-sm font-semibold tracking-wide text-slate-500">
+            QADAMTRACK / АДМИН-ПАНЕЛЬ
           </p>
 
           <h1 className="mb-2 text-2xl font-bold text-slate-900">
@@ -1373,7 +1377,7 @@ export default function AdminPage() {
           </h1>
 
           <div className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-4 text-green-900">
-            <p className="text-sm">Ты вошёл как:</p>
+            <p className="text-sm">Вы вошли как:</p>
             <p className="mt-1 font-semibold">{session.user.email}</p>
           </div>
 
@@ -1401,7 +1405,7 @@ export default function AdminPage() {
                   <input
                     value={newGroupName}
                     onChange={(event) => setNewGroupName(event.target.value)}
-                    placeholder="Например: Четиле 2"
+                    placeholder="Например: Клуб полезных привычек"
                     className="w-full rounded-xl border border-slate-200 px-4 py-3 text-lg outline-none focus:border-slate-900"
                   />
 
@@ -1460,7 +1464,7 @@ export default function AdminPage() {
                   Активных групп пока нет
                 </p>
                 <p className="mt-1 text-sm text-slate-600">
-                  Создай новую группу выше или восстанови группу из архива.
+                  Создайте новую группу выше или восстановите группу из архива.
                 </p>
               </div>
             )}
@@ -1538,7 +1542,7 @@ export default function AdminPage() {
                           </p>
 
                           <p className="text-sm text-slate-600">
-                            Введи email нового админа. Он должен заранее
+                            Введите email нового администратора. Он должен заранее
                             зарегистрироваться через /register.
                           </p>
 
@@ -1650,7 +1654,7 @@ export default function AdminPage() {
               </h2>
 
               <p className="mb-4 text-sm text-slate-600">
-                Выбери группу и настрой участников или задачи.
+                Выберите группу и настройте участников или задачи.
               </p>
 
               <label className="mb-1 block text-sm font-medium text-slate-700">
@@ -1761,7 +1765,7 @@ export default function AdminPage() {
                     <input
                       value={newTaskName}
                       onChange={(event) => setNewTaskName(event.target.value)}
-                      placeholder="Название задачи, например Салават"
+                      placeholder="Например: Чтение книги"
                       className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
                     />
 
@@ -1769,7 +1773,7 @@ export default function AdminPage() {
                       <input
                         value={newTaskUnit}
                         onChange={(event) => setNewTaskUnit(event.target.value)}
-                        placeholder="Ед. изм."
+                        placeholder="Например: страниц"
                         className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
                       />
 
@@ -1780,7 +1784,7 @@ export default function AdminPage() {
                         onChange={(event) =>
                           setNewTaskWeeklyGoal(event.target.value)
                         }
-                        placeholder="Норма"
+                        placeholder="Например: 70"
                         className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
                       />
                     </div>
@@ -1896,6 +1900,10 @@ export default function AdminPage() {
           >
             ← На главную
           </Link>
+
+          <p className="mt-6 text-center text-xs text-slate-400">
+            QadamTrack — двигайтесь к цели вместе
+          </p>
         </div>
       </main>
     );
@@ -1904,8 +1912,8 @@ export default function AdminPage() {
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-8">
       <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
-        <p className="mb-2 text-sm font-medium text-slate-500">
-          Админ-панель / Версия 2.0
+        <p className="mb-2 text-sm font-semibold tracking-wide text-slate-500">
+          QADAMTRACK / АДМИН-ПАНЕЛЬ
         </p>
 
         <h1 className="mb-2 text-2xl font-bold text-slate-900">
@@ -1913,7 +1921,7 @@ export default function AdminPage() {
         </h1>
 
         <p className="mb-6 text-slate-600">
-          Войди, чтобы управлять группами, участниками и задачами.
+          Войдите, чтобы управлять группами, участниками и задачами.
         </p>
 
         <div className="space-y-4">
@@ -1980,6 +1988,10 @@ export default function AdminPage() {
         >
           ← На главную
         </Link>
+
+        <p className="mt-6 text-center text-xs text-slate-400">
+          QadamTrack — двигайтесь к цели вместе
+        </p>
       </div>
     </main>
   );

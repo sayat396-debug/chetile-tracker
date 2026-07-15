@@ -554,7 +554,7 @@ export default function GroupPage() {
 
     setEntries(updatedEntries);
     setIsSaving(false);
-    setSaveMessage("Данные сохранены в Supabase.");
+    setSaveMessage("Данные сохранены.");
   }
 
   function getTaskTotal(memberId: string, taskId: string) {
@@ -634,7 +634,11 @@ export default function GroupPage() {
     return (
       <main className="min-h-screen bg-slate-100 px-4 py-8">
         <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
-          <p className="text-slate-600">Загрузка данных из Supabase...</p>
+          <p className="text-sm font-semibold tracking-wide text-slate-500">
+            QADAMTRACK
+          </p>
+
+          <p className="mt-4 text-slate-600">Загружаем группу...</p>
         </div>
       </main>
     );
@@ -691,8 +695,8 @@ export default function GroupPage() {
     return (
       <main className="min-h-screen bg-slate-100 px-4 py-8">
         <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
-          <p className="mb-2 text-sm font-medium text-slate-500">
-            Группа: {group?.name || groupSlug}
+          <p className="mb-2 text-sm font-semibold tracking-wide text-slate-500">
+            QADAMTRACK / {group?.name || groupSlug}
           </p>
 
           <h1 className="mb-2 text-2xl font-bold text-slate-900">
@@ -743,6 +747,10 @@ export default function GroupPage() {
           >
             ← На главную
           </Link>
+
+          <p className="mt-6 text-center text-xs text-slate-400">
+            QadamTrack — двигайтесь к цели вместе
+          </p>
         </div>
       </main>
     );
@@ -752,12 +760,12 @@ export default function GroupPage() {
     return (
       <main className="min-h-screen bg-slate-100 px-4 py-8">
         <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
-          <p className="mb-2 text-sm font-medium text-slate-500">
-            Версия 2.0 / Supabase подключён
+          <p className="mb-2 text-sm font-semibold tracking-wide text-slate-500">
+            QADAMTRACK / ГРУППА
           </p>
 
           <h1 className="mb-2 text-2xl font-bold text-slate-900">
-            Недельный трекер {group?.name || groupSlug}
+            {group?.name || groupSlug}
           </h1>
 
           <p className="mb-6 text-slate-600">
@@ -788,6 +796,10 @@ export default function GroupPage() {
           >
             ← На главную
           </Link>
+
+          <p className="mt-6 text-center text-xs text-slate-400">
+            QadamTrack — двигайтесь к цели вместе
+          </p>
         </div>
       </main>
     );
@@ -832,8 +844,12 @@ export default function GroupPage() {
           Участник: {selectedMember.name}
         </p>
 
+        <p className="mb-2 text-sm font-semibold tracking-wide text-slate-500">
+          QADAMTRACK / ГРУППА
+        </p>
+
         <h1 className="mb-1 text-2xl font-bold text-slate-900">
-          Недельный трекер {group?.name || groupSlug}
+          {group?.name || groupSlug}
         </h1>
 
         <p className="mb-4 text-sm font-medium text-slate-500">{weekTitle}</p>
