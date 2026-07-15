@@ -106,7 +106,7 @@ function getWeekDaysFromStart(weekStartDateKey: string) {
 
 function getCreatedWeekStartDateKey(
   groupCreatedAt: string | null,
-  weekStartDay: number,
+  weekStartDay: number
 ) {
   if (!groupCreatedAt) {
     return "";
@@ -126,12 +126,12 @@ function getCreatedWeekStartDateKey(
 function getWeekOptions(
   weekStartDay: number,
   groupCreatedAt: string | null,
-  maxWeeks = 100,
+  maxWeeks = 100
 ) {
   const currentWeekStart = getCurrentWeekStartDate(weekStartDay);
   const createdWeekStartKey = getCreatedWeekStartDateKey(
     groupCreatedAt,
-    weekStartDay,
+    weekStartDay
   );
 
   const options = [];
@@ -150,7 +150,7 @@ function getWeekOptions(
     endDate.setDate(startDate.getDate() + 6);
 
     const dateLabel = `${formatDisplayDate(startDate)}–${formatDisplayDate(
-      endDate,
+      endDate
     )}`;
 
     let label = dateLabel;
@@ -264,7 +264,7 @@ export default function GroupPage() {
     return getWeekOptions(
       group?.week_start_day ?? 6,
       group?.created_at ?? null,
-      100,
+      100
     );
   }, [group?.week_start_day, group?.created_at]);
 
@@ -285,7 +285,9 @@ export default function GroupPage() {
     selectedMember && selectedDay ? `${selectedMember.id}_${selectedDay}` : "";
 
   const weekTitle =
-    days.length > 0 ? `${days[0].displayDate}–${days[6].displayDate}` : "";
+    days.length > 0
+      ? `${days[0].displayDate}–${days[6].displayDate}`
+      : "";
 
   const selectedDayInfo = days.find((day) => day.date === selectedDay);
 
@@ -320,7 +322,7 @@ export default function GroupPage() {
   function rememberMemberVerification(member: Member) {
     localStorage.setItem(
       verifiedMemberStorageKey,
-      getMemberVerificationToken(member),
+      getMemberVerificationToken(member)
     );
   }
 
@@ -358,12 +360,10 @@ export default function GroupPage() {
           name: groupData.name,
           slug: groupData.slug,
           savedAt: new Date().toISOString(),
-        }),
+        })
       );
 
-      const currentWeekStart = getCurrentWeekStartDate(
-        groupData.week_start_day,
-      );
+      const currentWeekStart = getCurrentWeekStartDate(groupData.week_start_day);
       const currentWeekStartKey = toDateKey(currentWeekStart);
       const defaultDay = getDefaultSelectedDayForWeek(currentWeekStartKey);
 
@@ -389,7 +389,7 @@ export default function GroupPage() {
 
       if (savedMemberId) {
         const savedMember = membersData.find(
-          (member) => member.id === savedMemberId,
+          (member) => member.id === savedMemberId
         );
 
         if (savedMember && isMemberVerifiedOnThisDevice(savedMember)) {
@@ -635,7 +635,7 @@ export default function GroupPage() {
     if (members.length === 0) return 0;
 
     const memberPercents = members.map((member) =>
-      getMemberOverallPercent(member.id),
+      getMemberOverallPercent(member.id)
     );
 
     const sum = memberPercents.reduce((acc, percent) => acc + percent, 0);
@@ -654,8 +654,7 @@ export default function GroupPage() {
   }
 
   function getPercentCardClass(percent: number) {
-    if (percent >= 90)
-      return "border-emerald-200 bg-emerald-50 text-emerald-950";
+    if (percent >= 90) return "border-emerald-200 bg-emerald-50 text-emerald-950";
     if (percent >= 70) return "border-lime-200 bg-lime-50 text-lime-950";
     if (percent >= 50) return "border-amber-200 bg-amber-50 text-amber-950";
     if (percent >= 30) return "border-orange-200 bg-orange-50 text-orange-950";
@@ -953,7 +952,7 @@ export default function GroupPage() {
   const groupPercent = getGroupOverallPercent();
 
   const sortedMembers = [...members].sort(
-    (a, b) => getMemberOverallPercent(b.id) - getMemberOverallPercent(a.id),
+    (a, b) => getMemberOverallPercent(b.id) - getMemberOverallPercent(a.id)
   );
 
   return (
@@ -992,9 +991,7 @@ export default function GroupPage() {
                   {selectedMember.name}
                 </h1>
 
-                <p className="mt-1 text-sm text-slate-300">
-                  Неделя {weekTitle}
-                </p>
+                <p className="mt-1 text-sm text-slate-300">Неделя {weekTitle}</p>
               </div>
 
               <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/10 text-lg font-black text-white ring-1 ring-white/10">
@@ -1004,9 +1001,7 @@ export default function GroupPage() {
 
             <div className="mt-6 grid grid-cols-2 gap-3">
               <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
-                <p className="text-xs font-medium text-slate-300">
-                  Мой прогресс
-                </p>
+                <p className="text-xs font-medium text-slate-300">Мой прогресс</p>
                 <p className="mt-1 text-2xl font-black text-white">
                   {selectedMemberPercent}%
                 </p>
@@ -1118,10 +1113,7 @@ export default function GroupPage() {
               {days.map((day) => {
                 const isSelected = selectedDay === day.date;
                 const isToday = day.date === todayKey;
-                const isCompleted = hasEntriesForDay(
-                  selectedMember.id,
-                  day.date,
-                );
+                const isCompleted = hasEntriesForDay(selectedMember.id, day.date);
 
                 return (
                   <button
@@ -1131,8 +1123,8 @@ export default function GroupPage() {
                       isSelected
                         ? "border-slate-950 bg-slate-950 text-white shadow-lg shadow-slate-300"
                         : isToday
-                          ? "border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
-                          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                        ? "border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100"
+                        : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50"
                     }`}
                   >
                     <span className="block text-xs font-bold">{day.label}</span>
@@ -1202,9 +1194,7 @@ export default function GroupPage() {
               <div className="flex items-center gap-3">
                 <div className="hidden min-w-0 flex-1 sm:block">
                   <p className="text-sm font-bold text-slate-900">
-                    {hasUnsavedChanges
-                      ? "Есть несохранённые изменения"
-                      : "Всё сохранено"}
+                    {hasUnsavedChanges ? "Есть несохранённые изменения" : "Всё сохранено"}
                   </p>
                   <p className="mt-0.5 truncate text-xs text-slate-500">
                     {selectedDayInfo
@@ -1247,9 +1237,7 @@ export default function GroupPage() {
                 <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
                   Мой прогресс
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Неделя {weekTitle}
-                </p>
+                <p className="mt-1 text-sm text-slate-500">Неделя {weekTitle}</p>
               </div>
 
               <div className="text-right">
@@ -1265,7 +1253,7 @@ export default function GroupPage() {
             <div className="mt-5 h-3 overflow-hidden rounded-full bg-slate-100">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${getProgressBarClass(
-                  selectedMemberPercent,
+                  selectedMemberPercent
                 )}`}
                 style={{ width: `${Math.min(selectedMemberPercent, 100)}%` }}
               />
@@ -1280,7 +1268,7 @@ export default function GroupPage() {
                   <div
                     key={task.id}
                     className={`rounded-2xl border p-4 ${getPercentCardClass(
-                      percent,
+                      percent
                     )}`}
                   >
                     <div className="flex items-start justify-between gap-4">
@@ -1302,7 +1290,7 @@ export default function GroupPage() {
                     <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/70">
                       <div
                         className={`h-full rounded-full ${getProgressBarClass(
-                          percent,
+                          percent
                         )}`}
                         style={{ width: `${Math.min(percent, 100)}%` }}
                       />
@@ -1324,9 +1312,7 @@ export default function GroupPage() {
                 <h2 className="mt-1 text-2xl font-black tracking-tight text-slate-950">
                   Итоги группы
                 </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Неделя {weekTitle}
-                </p>
+                <p className="mt-1 text-sm text-slate-500">Неделя {weekTitle}</p>
               </div>
 
               <div className="text-right">
@@ -1342,7 +1328,7 @@ export default function GroupPage() {
             <div className="mt-5 h-3 overflow-hidden rounded-full bg-slate-100">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${getProgressBarClass(
-                  groupPercent,
+                  groupPercent
                 )}`}
                 style={{ width: `${Math.min(groupPercent, 100)}%` }}
               />

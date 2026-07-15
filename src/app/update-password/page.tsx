@@ -2,7 +2,12 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
+import AuthShell from "@/components/AuthShell";
+import BrandMark from "@/components/BrandMark";
 import { supabase } from "@/lib/supabaseClient";
+
+const inputClass =
+  "w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-slate-950 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100";
 
 export default function UpdatePasswordPage() {
   const [password, setPassword] = useState("");
@@ -83,7 +88,7 @@ export default function UpdatePasswordPage() {
 
     setIsError(false);
     setMessage(
-      "Пароль успешно изменён. Теперь вы можете войти в админ-панель."
+      "Пароль успешно изменён. Теперь вы можете войти в админ-панель.",
     );
 
     setPassword("");
@@ -92,136 +97,112 @@ export default function UpdatePasswordPage() {
 
   if (!isSessionReady) {
     return (
-      <main className="min-h-screen bg-slate-100 px-4 py-8">
-        <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
-          <p className="text-sm font-semibold tracking-wide text-slate-500">
-            QADAMTRACK
-          </p>
-
-          <p className="mt-4 text-slate-600">
-            Проверяем ссылку восстановления...
-          </p>
+      <main className="min-h-screen bg-gradient-to-br from-emerald-50 via-slate-50 to-sky-50 px-4 py-8">
+        <div className="mx-auto max-w-xl overflow-hidden rounded-3xl border border-white/80 bg-white shadow-xl shadow-slate-200/60">
+          <div className="bg-slate-950 p-6">
+            <BrandMark inverse />
+          </div>
+          <div className="p-6">
+            <div className="h-5 w-48 animate-pulse rounded-full bg-slate-100" />
+            <div className="mt-4 h-14 animate-pulse rounded-2xl bg-slate-100" />
+          </div>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 px-4 py-8">
-      <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
-        <Link
-          href="/"
-          className="text-sm font-semibold text-slate-500 transition hover:text-slate-900"
-        >
-          ← На главную
-        </Link>
-
-        <p className="mt-6 text-sm font-semibold tracking-wide text-slate-500">
-          QADAMTRACK
-        </p>
-
-        <h1 className="mt-2 text-2xl font-bold text-slate-900">
-          Создание нового пароля
-        </h1>
-
-        {hasRecoverySession ? (
-          <>
-            <p className="mt-2 text-slate-600">
-              Придумайте новый пароль для аккаунта администратора.
-            </p>
-
-            <form onSubmit={handleUpdatePassword} className="mt-6 space-y-4">
-              <div>
-                <label
-                  htmlFor="password"
-                  className="mb-2 block text-sm font-semibold text-slate-700"
-                >
-                  Новый пароль
-                </label>
-
-                <input
-                  id="password"
-                  type="password"
-                  autoComplete="new-password"
-                  value={password}
-                  onChange={(event) => setPassword(event.target.value)}
-                  placeholder="Не менее 6 символов"
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-slate-900"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="repeatPassword"
-                  className="mb-2 block text-sm font-semibold text-slate-700"
-                >
-                  Повторите новый пароль
-                </label>
-
-                <input
-                  id="repeatPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  value={repeatPassword}
-                  onChange={(event) => setRepeatPassword(event.target.value)}
-                  placeholder="Введите новый пароль ещё раз"
-                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-slate-900 outline-none transition focus:border-slate-900"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full rounded-xl bg-slate-900 px-4 py-3 text-lg font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isLoading ? "Сохраняем пароль..." : "Сохранить новый пароль"}
-              </button>
-            </form>
-          </>
-        ) : (
-          <div className="mt-6 rounded-xl bg-amber-50 p-4 text-amber-800">
-            <p className="font-semibold">
-              Ссылка восстановления недействительна или устарела
-            </p>
-
-            <p className="mt-2 text-sm">
-              Запросите новую ссылку для восстановления пароля.
-            </p>
+    <AuthShell
+      eyebrow="Новый пароль"
+      title="Создайте новый пароль"
+      description="Введите новый пароль для аккаунта администратора и повторите его для проверки."
+    >
+      {hasRecoverySession ? (
+        <form onSubmit={handleUpdatePassword} className="space-y-5">
+          <div>
+            <label
+              htmlFor="password"
+              className="mb-2 block text-sm font-bold text-slate-700"
+            >
+              Новый пароль
+            </label>
+            <input
+              id="password"
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              placeholder="Не менее 6 символов"
+              className={inputClass}
+            />
           </div>
-        )}
 
-        {message && (
-          <div
-            className={`mt-4 rounded-xl p-3 text-sm font-medium ${
-              isError
-                ? "bg-red-50 text-red-700"
-                : "bg-green-50 text-green-700"
-            }`}
-          >
-            {message}
+          <div>
+            <label
+              htmlFor="repeatPassword"
+              className="mb-2 block text-sm font-bold text-slate-700"
+            >
+              Повторите новый пароль
+            </label>
+            <input
+              id="repeatPassword"
+              type="password"
+              autoComplete="new-password"
+              value={repeatPassword}
+              onChange={(event) => setRepeatPassword(event.target.value)}
+              placeholder="Введите новый пароль ещё раз"
+              className={inputClass}
+            />
           </div>
-        )}
 
-        <div className="mt-6 border-t border-slate-200 pt-5">
-          <Link
-            href="/admin"
-            className="block w-full rounded-xl border border-slate-200 px-4 py-3 text-center font-semibold text-slate-800 transition hover:bg-slate-50"
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full rounded-2xl bg-slate-950 px-4 py-3.5 text-lg font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Войти как администратор
-          </Link>
-
-          <Link
-            href="/reset-password"
-            className="mt-3 block text-center text-sm font-semibold text-slate-600 transition hover:text-slate-900"
-          >
-            Запросить новую ссылку
-          </Link>
+            {isLoading ? "Сохраняем пароль..." : "Сохранить новый пароль"}
+          </button>
+        </form>
+      ) : (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-amber-900">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white text-xl shadow-sm">
+            !
+          </div>
+          <p className="mt-4 font-black">
+            Ссылка восстановления недействительна или устарела
+          </p>
+          <p className="mt-2 text-sm leading-6">
+            Запросите новую ссылку для восстановления пароля.
+          </p>
         </div>
+      )}
 
-        <p className="mt-6 text-center text-xs text-slate-400">
-          QadamTrack — двигайтесь к цели вместе
-        </p>
+      {message && (
+        <div
+          className={`mt-5 rounded-2xl border p-4 text-sm font-semibold ${
+            isError
+              ? "border-rose-200 bg-rose-50 text-rose-700"
+              : "border-emerald-200 bg-emerald-50 text-emerald-800"
+          }`}
+        >
+          {message}
+        </div>
+      )}
+
+      <div className="mt-8 border-t border-slate-200 pt-6">
+        <Link
+          href="/admin"
+          className="block w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-center font-bold text-slate-800 transition hover:border-slate-300 hover:bg-slate-50"
+        >
+          Войти как администратор
+        </Link>
+        <Link
+          href="/reset-password"
+          className="mt-4 block text-center text-sm font-bold text-emerald-700 transition hover:text-emerald-900"
+        >
+          Запросить новую ссылку
+        </Link>
       </div>
-    </main>
+    </AuthShell>
   );
 }

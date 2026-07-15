@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
+import BrandMark from "@/components/BrandMark";
+import AuthShell from "@/components/AuthShell";
 
 type Group = {
   id: string;
@@ -103,7 +105,7 @@ export default function AdminPage() {
   const archivedGroups = groups.filter((group) => group.is_archived);
 
   const selectedGroup = activeGroups.find(
-    (group) => group.id === selectedGroupId
+    (group) => group.id === selectedGroupId,
   );
 
   const activeMembers = members.filter((member) => member.is_active);
@@ -145,7 +147,7 @@ export default function AdminPage() {
       const { data, error } = await supabase
         .from("groups")
         .select(
-          "id, name, slug, week_start_day, created_at, is_archived, archived_at"
+          "id, name, slug, week_start_day, created_at, is_archived, archived_at",
         )
         .eq("owner_id", session.user.id)
         .order("created_at", { ascending: false });
@@ -159,7 +161,7 @@ export default function AdminPage() {
 
       const loadedGroups = data || [];
       const loadedActiveGroups = loadedGroups.filter(
-        (group) => !group.is_archived
+        (group) => !group.is_archived,
       );
 
       setGroups(loadedGroups);
@@ -167,7 +169,7 @@ export default function AdminPage() {
       if (loadedActiveGroups.length > 0) {
         setSelectedGroupId((current) => {
           const currentIsActive = loadedActiveGroups.some(
-            (group) => group.id === current
+            (group) => group.id === current,
           );
 
           return currentIsActive ? current : loadedActiveGroups[0].id;
@@ -209,7 +211,9 @@ export default function AdminPage() {
 
       const { data: tasksData, error: tasksError } = await supabase
         .from("tasks")
-        .select("id, group_id, name, unit, weekly_goal, display_order, is_active")
+        .select(
+          "id, group_id, name, unit, weekly_goal, display_order, is_active",
+        )
         .eq("group_id", selectedGroupId)
         .order("display_order", { ascending: true });
 
@@ -331,7 +335,7 @@ export default function AdminPage() {
     const { data, error } = await supabase
       .from("groups")
       .select(
-        "id, name, slug, week_start_day, created_at, is_archived, archived_at"
+        "id, name, slug, week_start_day, created_at, is_archived, archived_at",
       )
       .eq("owner_id", session.user.id)
       .order("created_at", { ascending: false });
@@ -343,7 +347,7 @@ export default function AdminPage() {
 
     const loadedGroups = data || [];
     const loadedActiveGroups = loadedGroups.filter(
-      (group) => !group.is_archived
+      (group) => !group.is_archived,
     );
 
     setGroups(loadedGroups);
@@ -534,7 +538,7 @@ export default function AdminPage() {
     setTransferEmail("");
     setEditingGroupId("");
     setMessage(
-      "Новый администратор должен заранее зарегистрироваться через /register. После передачи группа исчезнет из вашей админ-панели."
+      "Новый администратор должен заранее зарегистрироваться через /register. После передачи группа исчезнет из вашей админ-панели.",
     );
   }
 
@@ -553,7 +557,7 @@ export default function AdminPage() {
     }
 
     const isConfirmed = window.confirm(
-      `Передать группу "${group.name}" пользователю ${cleanEmail}? После передачи эта группа исчезнет из вашей админ-панели.`
+      `Передать группу "${group.name}" пользователю ${cleanEmail}? После передачи эта группа исчезнет из вашей админ-панели.`,
     );
 
     if (!isConfirmed) return;
@@ -583,7 +587,7 @@ export default function AdminPage() {
 
   async function handleArchiveGroup(group: Group) {
     const isConfirmed = window.confirm(
-      `Архивировать группу "${group.name}"? Она исчезнет из активных групп, но данные сохранятся.`
+      `Архивировать группу "${group.name}"? Она исчезнет из активных групп, но данные сохранятся.`,
     );
 
     if (!isConfirmed) return;
@@ -617,7 +621,7 @@ export default function AdminPage() {
 
   async function handleRestoreGroup(group: Group) {
     const isConfirmed = window.confirm(
-      `Восстановить группу "${group.name}" из архива?`
+      `Восстановить группу "${group.name}" из архива?`,
     );
 
     if (!isConfirmed) return;
@@ -647,13 +651,13 @@ export default function AdminPage() {
 
   async function handleDeleteArchivedGroup(group: Group) {
     const isConfirmed = window.confirm(
-      `Удалить группу "${group.name}" навсегда? Будут удалены участники, задачи, отметки и история. Это действие нельзя отменить.`
+      `Удалить группу "${group.name}" навсегда? Будут удалены участники, задачи, отметки и история. Это действие нельзя отменить.`,
     );
 
     if (!isConfirmed) return;
 
     const secondConfirm = window.confirm(
-      `Точно удалить "${group.name}"? Восстановить данные после удаления уже не получится.`
+      `Точно удалить "${group.name}"? Восстановить данные после удаления уже не получится.`,
     );
 
     if (!secondConfirm) return;
@@ -808,7 +812,7 @@ export default function AdminPage() {
 
   async function handleRemoveMemberPin(member: Member) {
     const isConfirmed = window.confirm(
-      `Убрать PIN-код у участника "${member.name}"? После этого он сможет заходить без PIN.`
+      `Убрать PIN-код у участника "${member.name}"? После этого он сможет заходить без PIN.`,
     );
 
     if (!isConfirmed) return;
@@ -852,13 +856,13 @@ export default function AdminPage() {
 
   async function handleDeleteInactiveMember(member: Member) {
     const isConfirmed = window.confirm(
-      `Удалить участника "${member.name}" навсегда? Его отметки и история по этой группе будут удалены.`
+      `Удалить участника "${member.name}" навсегда? Его отметки и история по этой группе будут удалены.`,
     );
 
     if (!isConfirmed) return;
 
     const secondConfirm = window.confirm(
-      `Точно удалить участника "${member.name}"? Это действие нельзя отменить.`
+      `Точно удалить участника "${member.name}"? Это действие нельзя отменить.`,
     );
 
     if (!secondConfirm) return;
@@ -1018,13 +1022,13 @@ export default function AdminPage() {
 
   async function handleDeleteInactiveTask(task: Task) {
     const isConfirmed = window.confirm(
-      `Удалить задачу "${task.name}" навсегда? Все отметки по этой задаче будут удалены.`
+      `Удалить задачу "${task.name}" навсегда? Все отметки по этой задаче будут удалены.`,
     );
 
     if (!isConfirmed) return;
 
     const secondConfirm = window.confirm(
-      `Точно удалить задачу "${task.name}"? Это действие нельзя отменить.`
+      `Точно удалить задачу "${task.name}"? Это действие нельзя отменить.`,
     );
 
     if (!secondConfirm) return;
@@ -1115,29 +1119,61 @@ export default function AdminPage() {
     return `${day}.${month}.${year}`;
   }
 
+  function getInitials(name: string) {
+    return name
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("");
+  }
+
+  const inputClass =
+    "w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-slate-950 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100";
+
+  const primaryButtonClass =
+    "rounded-2xl bg-slate-950 px-4 py-3 font-bold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50";
+
+  const secondaryButtonClass =
+    "rounded-2xl border border-slate-200 bg-white px-4 py-3 font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
+
   function renderMemberCard(member: Member) {
     const isEditingThisMember = editingMemberId === member.id;
     const isEditingThisPin = pinEditingMemberId === member.id;
 
     return (
-      <div
+      <article
         key={member.id}
-        className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+        className={`rounded-3xl border p-4 transition ${
+          member.is_active
+            ? "border-slate-200 bg-white"
+            : "border-slate-200 bg-slate-50 opacity-80"
+        }`}
       >
         {isEditingThisMember ? (
           <div className="space-y-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-600">
+                Изменение участника
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Обновите имя, которое будет видно в группе.
+              </p>
+            </div>
+
             <input
               value={editMemberName}
               onChange={(event) => setEditMemberName(event.target.value)}
               placeholder="Имя участника"
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
+              className={inputClass}
             />
 
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => handleSaveMemberEdit(member)}
                 disabled={isUpdatingMember}
-                className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                className={primaryButtonClass}
               >
                 {isUpdatingMember ? "Сохраняем..." : "Сохранить"}
               </button>
@@ -1145,7 +1181,7 @@ export default function AdminPage() {
               <button
                 onClick={handleCancelEditMember}
                 disabled={isUpdatingMember}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                className={secondaryButtonClass}
               >
                 Отмена
               </button>
@@ -1154,12 +1190,14 @@ export default function AdminPage() {
         ) : isEditingThisPin ? (
           <div className="space-y-3">
             <div>
-              <p className="font-semibold text-slate-900">
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-600">
+                Защита участника
+              </p>
+              <p className="mt-1 font-black text-slate-950">
                 PIN для {member.name}
               </p>
-
-              <p className="mt-1 text-xs text-slate-500">
-                Введите 4–8 цифр. Этот участник будет входить по PIN-коду.
+              <p className="mt-1 text-sm text-slate-500">
+                Введите 4–8 цифр. На этом устройстве PIN можно запомнить.
               </p>
             </div>
 
@@ -1169,14 +1207,14 @@ export default function AdminPage() {
               value={pinValue}
               onChange={(event) => setPinValue(event.target.value)}
               placeholder="Например: 1234"
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
+              className={inputClass}
             />
 
             <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => handleSaveMemberPin(member)}
                 disabled={isSavingPin}
-                className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                className={primaryButtonClass}
               >
                 {isSavingPin ? "Сохраняем..." : "Сохранить PIN"}
               </button>
@@ -1184,37 +1222,51 @@ export default function AdminPage() {
               <button
                 onClick={handleCancelEditPin}
                 disabled={isSavingPin}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                className={secondaryButtonClass}
               >
                 Отмена
               </button>
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="font-semibold text-slate-900">{member.name}</p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-sm font-black text-emerald-800">
+                {getInitials(member.name)}
+              </div>
 
-              <p className="text-xs text-slate-500">
-                {member.is_active ? "Активен" : "Отключён"}
-              </p>
-
-              <p className="text-xs text-slate-500">
-                PIN: {member.has_pin ? "включён" : "не установлен"}
-              </p>
+              <div className="min-w-0">
+                <p className="truncate font-black text-slate-950">
+                  {member.name}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                      member.is_active
+                        ? "bg-emerald-100 text-emerald-700"
+                        : "bg-slate-200 text-slate-600"
+                    }`}
+                  >
+                    {member.is_active ? "Активен" : "Отключён"}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-600">
+                    {member.has_pin ? "PIN включён" : "Без PIN"}
+                  </span>
+                </div>
+              </div>
             </div>
 
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-2 sm:max-w-sm sm:justify-end">
               <button
                 onClick={() => handleStartEditMember(member)}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
               >
                 Изменить
               </button>
 
               <button
                 onClick={() => handleStartEditPin(member)}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
               >
                 {member.has_pin ? "Сменить PIN" : "Поставить PIN"}
               </button>
@@ -1223,7 +1275,7 @@ export default function AdminPage() {
                 <button
                   onClick={() => handleRemoveMemberPin(member)}
                   disabled={isSavingPin}
-                  className="rounded-lg border border-orange-200 bg-white px-3 py-2 text-xs font-semibold text-orange-700 transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:bg-orange-100"
+                  className="rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-bold text-amber-700 transition hover:bg-amber-50 disabled:opacity-50"
                 >
                   Убрать PIN
                 </button>
@@ -1231,7 +1283,7 @@ export default function AdminPage() {
 
               <button
                 onClick={() => handleToggleMemberActive(member)}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
               >
                 {member.is_active ? "Отключить" : "Включить"}
               </button>
@@ -1240,7 +1292,7 @@ export default function AdminPage() {
                 <button
                   onClick={() => handleDeleteInactiveMember(member)}
                   disabled={isDeletingMember}
-                  className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:bg-red-100"
+                  className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50"
                 >
                   {isDeletingMember ? "..." : "Удалить"}
                 </button>
@@ -1248,7 +1300,7 @@ export default function AdminPage() {
             </div>
           </div>
         )}
-      </div>
+      </article>
     );
   }
 
@@ -1256,17 +1308,30 @@ export default function AdminPage() {
     const isEditingThisTask = editingTaskId === task.id;
 
     return (
-      <div
+      <article
         key={task.id}
-        className="rounded-xl border border-slate-200 bg-slate-50 p-3"
+        className={`rounded-3xl border p-4 transition ${
+          task.is_active
+            ? "border-slate-200 bg-white"
+            : "border-slate-200 bg-slate-50 opacity-80"
+        }`}
       >
         {isEditingThisTask ? (
           <div className="space-y-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-600">
+                Изменение задачи
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Название, единица измерения и недельная норма.
+              </p>
+            </div>
+
             <input
               value={editTaskName}
               onChange={(event) => setEditTaskName(event.target.value)}
               placeholder="Название задачи"
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
+              className={inputClass}
             />
 
             <div className="grid grid-cols-2 gap-2">
@@ -1274,7 +1339,7 @@ export default function AdminPage() {
                 value={editTaskUnit}
                 onChange={(event) => setEditTaskUnit(event.target.value)}
                 placeholder="Ед. изм."
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
+                className={inputClass}
               />
 
               <input
@@ -1283,7 +1348,7 @@ export default function AdminPage() {
                 value={editTaskWeeklyGoal}
                 onChange={(event) => setEditTaskWeeklyGoal(event.target.value)}
                 placeholder="Норма"
-                className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
+                className={inputClass}
               />
             </div>
 
@@ -1291,7 +1356,7 @@ export default function AdminPage() {
               <button
                 onClick={() => handleSaveTaskEdit(task)}
                 disabled={isUpdatingTask}
-                className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                className={primaryButtonClass}
               >
                 {isUpdatingTask ? "Сохраняем..." : "Сохранить"}
               </button>
@@ -1299,37 +1364,49 @@ export default function AdminPage() {
               <button
                 onClick={handleCancelEditTask}
                 disabled={isUpdatingTask}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100"
+                className={secondaryButtonClass}
               >
                 Отмена
               </button>
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="font-semibold text-slate-900">{task.name}</p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-100 text-lg font-black text-sky-800">
+                ↗
+              </div>
 
-              <p className="text-xs text-slate-500">
-                Норма: {task.weekly_goal} {task.unit || ""}
-              </p>
-
-              <p className="text-xs text-slate-500">
-                {task.is_active ? "Активна" : "Отключена"}
-              </p>
+              <div className="min-w-0">
+                <p className="truncate font-black text-slate-950">
+                  {task.name}
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  Норма: {task.weekly_goal} {task.unit || ""} в неделю
+                </p>
+                <span
+                  className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-xs font-bold ${
+                    task.is_active
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-slate-200 text-slate-600"
+                  }`}
+                >
+                  {task.is_active ? "Активна" : "Отключена"}
+                </span>
+              </div>
             </div>
 
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-2 sm:justify-end">
               <button
                 onClick={() => handleStartEditTask(task)}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
               >
                 Изменить
               </button>
 
               <button
                 onClick={() => handleToggleTaskActive(task)}
-                className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
               >
                 {task.is_active ? "Отключить" : "Включить"}
               </button>
@@ -1338,7 +1415,7 @@ export default function AdminPage() {
                 <button
                   onClick={() => handleDeleteInactiveTask(task)}
                   disabled={isDeletingTask}
-                  className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:bg-red-100"
+                  className="rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs font-bold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50"
                 >
                   {isDeletingTask ? "..." : "Удалить"}
                 </button>
@@ -1346,19 +1423,21 @@ export default function AdminPage() {
             </div>
           </div>
         )}
-      </div>
+      </article>
     );
   }
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-slate-100 px-4 py-8">
-        <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
-          <p className="text-sm font-semibold tracking-wide text-slate-500">
-            QADAMTRACK
-          </p>
-
-          <p className="mt-4 text-slate-600">Проверяем вход...</p>
+      <main className="min-h-screen bg-gradient-to-br from-emerald-50 via-slate-50 to-sky-50 px-4 py-8">
+        <div className="mx-auto max-w-xl overflow-hidden rounded-3xl border border-white/80 bg-white shadow-xl shadow-slate-200/60">
+          <div className="bg-slate-950 p-6">
+            <BrandMark inverse />
+          </div>
+          <div className="space-y-3 p-6">
+            <div className="h-5 w-40 animate-pulse rounded-full bg-slate-100" />
+            <div className="h-16 animate-pulse rounded-2xl bg-slate-100" />
+          </div>
         </div>
       </main>
     );
@@ -1366,633 +1445,743 @@ export default function AdminPage() {
 
   if (session) {
     return (
-      <main className="min-h-screen bg-slate-100 px-4 py-8">
-        <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
-          <p className="mb-2 text-sm font-semibold tracking-wide text-slate-500">
-            QADAMTRACK / АДМИН-ПАНЕЛЬ
-          </p>
+      <main className="min-h-screen bg-gradient-to-br from-emerald-50 via-slate-50 to-sky-50 px-3 py-4 sm:px-5 sm:py-8">
+        <div className="mx-auto max-w-6xl">
+          <header className="relative overflow-hidden rounded-[2rem] bg-slate-950 p-5 shadow-2xl shadow-slate-300/50 sm:p-7">
+            <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-emerald-400/20 blur-3xl" />
+            <div className="absolute -bottom-28 left-1/3 h-56 w-56 rounded-full bg-sky-400/10 blur-3xl" />
 
-          <h1 className="mb-2 text-2xl font-bold text-slate-900">
-            Панель администратора
-          </h1>
+            <div className="relative">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                <BrandMark inverse />
 
-          <div className="mb-6 rounded-2xl border border-green-200 bg-green-50 p-4 text-green-900">
-            <p className="text-sm">Вы вошли как:</p>
-            <p className="mt-1 font-semibold">{session.user.email}</p>
-          </div>
+                <div className="flex flex-wrap gap-2">
+                  <Link
+                    href="/"
+                    className="rounded-full bg-white/10 px-4 py-2.5 text-sm font-bold text-white ring-1 ring-white/10 transition hover:bg-white/15"
+                  >
+                    Главная
+                  </Link>
+                  <button
+                    onClick={handleSignOut}
+                    className="rounded-full bg-rose-500/15 px-4 py-2.5 text-sm font-bold text-rose-200 ring-1 ring-rose-400/20 transition hover:bg-rose-500/25"
+                  >
+                    Выйти
+                  </button>
+                </div>
+              </div>
 
-          <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
-            <button
-              onClick={() => setIsCreateGroupOpen((current) => !current)}
-              className="flex w-full items-center justify-between text-left"
-            >
-              <span className="text-xl font-bold text-slate-900">
-                Создать группу
-              </span>
-
-              <span className="text-sm font-semibold text-slate-500">
-                {isCreateGroupOpen ? "Скрыть" : "Открыть"}
-              </span>
-            </button>
-
-            {isCreateGroupOpen && (
-              <div className="mt-4 space-y-4">
+              <div className="mt-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Название группы
-                  </label>
-
-                  <input
-                    value={newGroupName}
-                    onChange={(event) => setNewGroupName(event.target.value)}
-                    placeholder="Например: Клуб полезных привычек"
-                    className="w-full rounded-xl border border-slate-200 px-4 py-3 text-lg outline-none focus:border-slate-900"
-                  />
-
-                  <p className="mt-1 text-xs text-slate-500">
-                    Ссылка группы создастся автоматически.
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-400">
+                    Панель администратора
+                  </p>
+                  <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
+                    Управление QadamTrack
+                  </h1>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+                    Создавайте группы, управляйте участниками и настраивайте
+                    недельные цели в одном месте.
                   </p>
                 </div>
 
-                <div>
-                  <label className="mb-1 block text-sm font-medium text-slate-700">
-                    Начало недели
-                  </label>
-
-                  <select
-                    value={newGroupWeekStartDay}
-                    onChange={(event) =>
-                      setNewGroupWeekStartDay(event.target.value)
-                    }
-                    className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-lg outline-none focus:border-slate-900"
-                  >
-                    <option value="1">Понедельник</option>
-                    <option value="2">Вторник</option>
-                    <option value="3">Среда</option>
-                    <option value="4">Четверг</option>
-                    <option value="5">Пятница</option>
-                    <option value="6">Суббота</option>
-                    <option value="0">Воскресенье</option>
-                  </select>
+                <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
+                  <p className="text-xs font-medium text-slate-400">
+                    Вы вошли как
+                  </p>
+                  <p className="mt-1 break-all font-black text-white">
+                    {session.user.email}
+                  </p>
                 </div>
-
-                <button
-                  onClick={handleCreateGroup}
-                  disabled={isCreatingGroup}
-                  className="w-full rounded-xl bg-slate-900 px-4 py-3 text-lg font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-                >
-                  {isCreatingGroup ? "Создаём..." : "Создать группу"}
-                </button>
-              </div>
-            )}
-          </div>
-
-          <div className="mb-6">
-            <h2 className="mb-3 text-xl font-bold text-slate-900">
-              Активные группы
-            </h2>
-
-            {isGroupsLoading && (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm text-slate-600">Загружаем группы...</p>
-              </div>
-            )}
-
-            {!isGroupsLoading && activeGroups.length === 0 && (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="font-semibold text-slate-900">
-                  Активных групп пока нет
-                </p>
-                <p className="mt-1 text-sm text-slate-600">
-                  Создайте новую группу выше или восстановите группу из архива.
-                </p>
-              </div>
-            )}
-
-            {!isGroupsLoading && activeGroups.length > 0 && (
-              <div className="space-y-3">
-                {activeGroups.map((group) => {
-                  const isEditingThisGroup = editingGroupId === group.id;
-                  const isTransferringThisGroup =
-                    transferringGroupId === group.id;
-
-                  return (
-                    <div
-                      key={group.id}
-                      className={`rounded-2xl border p-4 ${
-                        selectedGroupId === group.id
-                          ? "border-slate-900 bg-slate-50"
-                          : "border-slate-200 bg-white"
-                      }`}
-                    >
-                      {isEditingThisGroup ? (
-                        <div className="space-y-3">
-                          <input
-                            value={editGroupName}
-                            onChange={(event) =>
-                              setEditGroupName(event.target.value)
-                            }
-                            placeholder="Название группы"
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
-                          />
-
-                          <select
-                            value={editGroupWeekStartDay}
-                            onChange={(event) =>
-                              setEditGroupWeekStartDay(event.target.value)
-                            }
-                            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base outline-none focus:border-slate-900"
-                          >
-                            <option value="1">Понедельник</option>
-                            <option value="2">Вторник</option>
-                            <option value="3">Среда</option>
-                            <option value="4">Четверг</option>
-                            <option value="5">Пятница</option>
-                            <option value="6">Суббота</option>
-                            <option value="0">Воскресенье</option>
-                          </select>
-
-                          <p className="text-xs text-slate-500">
-                            Ссылка группы не меняется, чтобы участники не
-                            потеряли доступ.
-                          </p>
-
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              onClick={() => handleSaveGroupEdit(group)}
-                              disabled={isUpdatingGroup}
-                              className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-                            >
-                              {isUpdatingGroup ? "Сохраняем..." : "Сохранить"}
-                            </button>
-
-                            <button
-                              onClick={handleCancelEditGroup}
-                              disabled={isUpdatingGroup}
-                              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100"
-                            >
-                              Отмена
-                            </button>
-                          </div>
-                        </div>
-                      ) : isTransferringThisGroup ? (
-                        <div className="space-y-3">
-                          <p className="font-semibold text-slate-900">
-                            Передать группу: {group.name}
-                          </p>
-
-                          <p className="text-sm text-slate-600">
-                            Введите email нового администратора. Он должен заранее
-                            зарегистрироваться через /register.
-                          </p>
-
-                          <input
-                            type="email"
-                            value={transferEmail}
-                            onChange={(event) =>
-                              setTransferEmail(event.target.value)
-                            }
-                            placeholder="newadmin@mail.com"
-                            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
-                          />
-
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              onClick={() => handleTransferGroup(group)}
-                              disabled={isTransferringGroup}
-                              className="rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
-                            >
-                              {isTransferringGroup
-                                ? "Передаём..."
-                                : "Передать"}
-                            </button>
-
-                            <button
-                              onClick={handleCancelTransferGroup}
-                              disabled={isTransferringGroup}
-                              className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-slate-100"
-                            >
-                              Отмена
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="font-semibold text-slate-900">
-                                {group.name}
-                              </p>
-
-                              <p className="mt-1 text-sm text-slate-600">
-                                /g/{group.slug}
-                              </p>
-
-                              <button
-                                onClick={() => handleShareGroup(group)}
-                                className="mt-2 text-sm font-semibold text-slate-700 underline underline-offset-4 hover:text-slate-900"
-                              >
-                                Поделиться ссылкой
-                              </button>
-
-                              <p className="mt-2 text-sm text-slate-600">
-                                Начало недели:{" "}
-                                {getWeekStartDayLabel(group.week_start_day)}
-                              </p>
-                            </div>
-
-                            {selectedGroupId === group.id && (
-                              <span className="rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white">
-                                Выбрана
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="mt-4 grid grid-cols-2 gap-2">
-                            <Link
-                              href={`/g/${group.slug}`}
-                              className="rounded-xl bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white transition hover:bg-slate-700"
-                            >
-                              Открыть
-                            </Link>
-
-                            <button
-                              onClick={() => handleStartEditGroup(group)}
-                              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-center text-sm font-semibold text-slate-800 transition hover:bg-slate-100"
-                            >
-                              Изменить
-                            </button>
-
-                            <button
-                              onClick={() => handleStartTransferGroup(group)}
-                              className="rounded-xl border border-red-200 bg-white px-3 py-2 text-center text-sm font-semibold text-red-700 transition hover:bg-red-50"
-                            >
-                              Передать
-                            </button>
-
-                            <button
-                              onClick={() => handleArchiveGroup(group)}
-                              disabled={isArchivingGroup}
-                              className="rounded-xl border border-orange-200 bg-white px-3 py-2 text-center text-sm font-semibold text-orange-700 transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:bg-orange-100"
-                            >
-                              {isArchivingGroup ? "..." : "В архив"}
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {selectedGroup && (
-            <div className="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
-              <h2 className="mb-1 text-xl font-bold text-slate-900">
-                Управление группой
-              </h2>
-
-              <p className="mb-4 text-sm text-slate-600">
-                Выберите группу и настройте участников или задачи.
-              </p>
-
-              <label className="mb-1 block text-sm font-medium text-slate-700">
-                Выбранная группа
-              </label>
-
-              <select
-                value={selectedGroupId}
-                onChange={(event) => {
-                  setSelectedGroupId(event.target.value);
-                  setEditingMemberId("");
-                  setEditingTaskId("");
-                  setPinEditingMemberId("");
-                  setPinValue("");
-                  setMessage("");
-                }}
-                className="mb-4 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-base outline-none focus:border-slate-900"
-              >
-                {activeGroups.map((group) => (
-                  <option key={group.id} value={group.id}>
-                    {group.name}
-                  </option>
-                ))}
-              </select>
-
-              <div className="mb-4 grid grid-cols-2 gap-2 rounded-xl bg-slate-100 p-1">
-                <button
-                  onClick={() => setManagementTab("members")}
-                  className={`rounded-lg px-3 py-2 text-sm font-semibold ${
-                    managementTab === "members"
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-slate-500"
-                  }`}
-                >
-                  Участники ({activeMembers.length})
-                </button>
-
-                <button
-                  onClick={() => setManagementTab("tasks")}
-                  className={`rounded-lg px-3 py-2 text-sm font-semibold ${
-                    managementTab === "tasks"
-                      ? "bg-white text-slate-900 shadow-sm"
-                      : "text-slate-500"
-                  }`}
-                >
-                  Задачи ({activeTasks.length})
-                </button>
               </div>
 
-              {managementTab === "members" && (
-                <div>
-                  <div className="mb-4 flex gap-2">
-                    <input
-                      value={newMemberName}
-                      onChange={(event) => setNewMemberName(event.target.value)}
-                      placeholder="Имя участника"
-                      className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
-                    />
-
-                    <button
-                      onClick={handleAddMember}
-                      disabled={isAddingMember}
-                      className="rounded-xl bg-slate-900 px-4 py-3 text-base font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-                    >
-                      {isAddingMember ? "..." : "+"}
-                    </button>
-                  </div>
-
-                  {isMembersLoading && (
-                    <p className="text-sm text-slate-500">
-                      Загружаем участников...
-                    </p>
-                  )}
-
-                  {!isMembersLoading && activeMembers.length === 0 && (
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                      <p className="text-sm text-slate-600">
-                        Активных участников пока нет.
-                      </p>
-                    </div>
-                  )}
-
-                  {!isMembersLoading && activeMembers.length > 0 && (
-                    <div className="space-y-2">
-                      {activeMembers.map((member) => renderMemberCard(member))}
-                    </div>
-                  )}
-
-                  {!isMembersLoading && inactiveMembers.length > 0 && (
-                    <div className="mt-5">
-                      <h3 className="mb-2 text-sm font-bold text-slate-500">
-                        Отключённые участники
-                      </h3>
-
-                      <div className="space-y-2">
-                        {inactiveMembers.map((member) =>
-                          renderMemberCard(member)
-                        )}
-                      </div>
-                    </div>
-                  )}
+              <div className="mt-6 grid grid-cols-3 gap-3">
+                <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
+                  <p className="text-xs text-slate-400">Группы</p>
+                  <p className="mt-1 text-2xl font-black text-white">
+                    {activeGroups.length}
+                  </p>
                 </div>
-              )}
-
-              {managementTab === "tasks" && (
-                <div>
-                  <div className="mb-4 space-y-3">
-                    <input
-                      value={newTaskName}
-                      onChange={(event) => setNewTaskName(event.target.value)}
-                      placeholder="Например: Чтение книги"
-                      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
-                    />
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        value={newTaskUnit}
-                        onChange={(event) => setNewTaskUnit(event.target.value)}
-                        placeholder="Например: страниц"
-                        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
-                      />
-
-                      <input
-                        type="number"
-                        min="0"
-                        value={newTaskWeeklyGoal}
-                        onChange={(event) =>
-                          setNewTaskWeeklyGoal(event.target.value)
-                        }
-                        placeholder="Например: 70"
-                        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-base outline-none focus:border-slate-900"
-                      />
-                    </div>
-
-                    <button
-                      onClick={handleAddTask}
-                      disabled={isAddingTask}
-                      className="w-full rounded-xl bg-slate-900 px-4 py-3 text-base font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
-                    >
-                      {isAddingTask ? "Добавляем..." : "Добавить задачу"}
-                    </button>
-                  </div>
-
-                  {isTasksLoading && (
-                    <p className="text-sm text-slate-500">
-                      Загружаем задачи...
-                    </p>
-                  )}
-
-                  {!isTasksLoading && activeTasks.length === 0 && (
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                      <p className="text-sm text-slate-600">
-                        Активных задач пока нет.
-                      </p>
-                    </div>
-                  )}
-
-                  {!isTasksLoading && activeTasks.length > 0 && (
-                    <div className="space-y-2">
-                      {activeTasks.map((task) => renderTaskCard(task))}
-                    </div>
-                  )}
-
-                  {!isTasksLoading && inactiveTasks.length > 0 && (
-                    <div className="mt-5">
-                      <h3 className="mb-2 text-sm font-bold text-slate-500">
-                        Отключённые задачи
-                      </h3>
-
-                      <div className="space-y-2">
-                        {inactiveTasks.map((task) => renderTaskCard(task))}
-                      </div>
-                    </div>
-                  )}
+                <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
+                  <p className="text-xs text-slate-400">Участники</p>
+                  <p className="mt-1 text-2xl font-black text-white">
+                    {activeMembers.length}
+                  </p>
                 </div>
-              )}
+                <div className="rounded-2xl bg-white/10 p-4 ring-1 ring-white/10">
+                  <p className="text-xs text-slate-400">Задачи</p>
+                  <p className="mt-1 text-2xl font-black text-white">
+                    {activeTasks.length}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          {message && (
+            <div className="mt-4 rounded-2xl border border-white/80 bg-white/90 p-4 text-sm font-semibold text-slate-700 shadow-lg shadow-slate-200/40 backdrop-blur">
+              {message}
             </div>
           )}
 
+          <div className="mt-4 grid items-start gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="space-y-4">
+              <section className="rounded-3xl border border-white/80 bg-white p-5 shadow-lg shadow-slate-200/50 sm:p-6">
+                <button
+                  onClick={() => setIsCreateGroupOpen((current) => !current)}
+                  className="flex w-full items-center justify-between gap-4 text-left"
+                >
+                  <span>
+                    <span className="block text-xs font-black uppercase tracking-[0.14em] text-emerald-600">
+                      Новая группа
+                    </span>
+                    <span className="mt-1 block text-xl font-black text-slate-950">
+                      Создать пространство
+                    </span>
+                  </span>
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 text-xl font-black text-emerald-700">
+                    {isCreateGroupOpen ? "−" : "+"}
+                  </span>
+                </button>
+
+                {isCreateGroupOpen && (
+                  <div className="mt-5 space-y-4 border-t border-slate-100 pt-5">
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-700">
+                        Название группы
+                      </label>
+                      <input
+                        value={newGroupName}
+                        onChange={(event) =>
+                          setNewGroupName(event.target.value)
+                        }
+                        placeholder="Например: Клуб полезных привычек"
+                        className={inputClass}
+                      />
+                      <p className="mt-2 text-xs leading-5 text-slate-500">
+                        Ссылка группы будет создана автоматически.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="mb-2 block text-sm font-bold text-slate-700">
+                        Начало недели
+                      </label>
+                      <select
+                        value={newGroupWeekStartDay}
+                        onChange={(event) =>
+                          setNewGroupWeekStartDay(event.target.value)
+                        }
+                        className={inputClass}
+                      >
+                        <option value="1">Понедельник</option>
+                        <option value="2">Вторник</option>
+                        <option value="3">Среда</option>
+                        <option value="4">Четверг</option>
+                        <option value="5">Пятница</option>
+                        <option value="6">Суббота</option>
+                        <option value="0">Воскресенье</option>
+                      </select>
+                    </div>
+
+                    <button
+                      onClick={handleCreateGroup}
+                      disabled={isCreatingGroup}
+                      className={`w-full ${primaryButtonClass}`}
+                    >
+                      {isCreatingGroup ? "Создаём..." : "Создать группу"}
+                    </button>
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-3xl border border-white/80 bg-white p-5 shadow-lg shadow-slate-200/50 sm:p-6">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                      Ваши пространства
+                    </p>
+                    <h2 className="mt-1 text-xl font-black text-slate-950">
+                      Активные группы
+                    </h2>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+                    {activeGroups.length}
+                  </span>
+                </div>
+
+                {isGroupsLoading && (
+                  <div className="mt-5 space-y-3">
+                    {[1, 2].map((item) => (
+                      <div
+                        key={item}
+                        className="h-28 animate-pulse rounded-3xl bg-slate-100"
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {!isGroupsLoading && activeGroups.length === 0 && (
+                  <div className="mt-5 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center">
+                    <p className="font-black text-slate-950">
+                      Активных групп пока нет
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      Создайте новую группу или восстановите её из архива.
+                    </p>
+                  </div>
+                )}
+
+                {!isGroupsLoading && activeGroups.length > 0 && (
+                  <div className="mt-5 space-y-3">
+                    {activeGroups.map((group) => {
+                      const isEditingThisGroup = editingGroupId === group.id;
+                      const isTransferringThisGroup =
+                        transferringGroupId === group.id;
+                      const isSelected = selectedGroupId === group.id;
+
+                      return (
+                        <article
+                          key={group.id}
+                          className={`rounded-3xl border p-4 transition ${
+                            isSelected
+                              ? "border-emerald-300 bg-emerald-50/70 ring-4 ring-emerald-50"
+                              : "border-slate-200 bg-white hover:border-slate-300"
+                          }`}
+                        >
+                          {isEditingThisGroup ? (
+                            <div className="space-y-3">
+                              <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-600">
+                                Изменение группы
+                              </p>
+                              <input
+                                value={editGroupName}
+                                onChange={(event) =>
+                                  setEditGroupName(event.target.value)
+                                }
+                                placeholder="Название группы"
+                                className={inputClass}
+                              />
+                              <select
+                                value={editGroupWeekStartDay}
+                                onChange={(event) =>
+                                  setEditGroupWeekStartDay(event.target.value)
+                                }
+                                className={inputClass}
+                              >
+                                <option value="1">Понедельник</option>
+                                <option value="2">Вторник</option>
+                                <option value="3">Среда</option>
+                                <option value="4">Четверг</option>
+                                <option value="5">Пятница</option>
+                                <option value="6">Суббота</option>
+                                <option value="0">Воскресенье</option>
+                              </select>
+                              <p className="text-xs leading-5 text-slate-500">
+                                Ссылка группы не меняется, чтобы участники не
+                                потеряли доступ.
+                              </p>
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  onClick={() => handleSaveGroupEdit(group)}
+                                  disabled={isUpdatingGroup}
+                                  className={primaryButtonClass}
+                                >
+                                  {isUpdatingGroup
+                                    ? "Сохраняем..."
+                                    : "Сохранить"}
+                                </button>
+                                <button
+                                  onClick={handleCancelEditGroup}
+                                  disabled={isUpdatingGroup}
+                                  className={secondaryButtonClass}
+                                >
+                                  Отмена
+                                </button>
+                              </div>
+                            </div>
+                          ) : isTransferringThisGroup ? (
+                            <div className="space-y-3">
+                              <p className="text-xs font-black uppercase tracking-[0.14em] text-rose-600">
+                                Передача владельца
+                              </p>
+                              <p className="font-black text-slate-950">
+                                {group.name}
+                              </p>
+                              <p className="text-sm leading-6 text-slate-600">
+                                Новый администратор должен заранее
+                                зарегистрироваться через страницу регистрации.
+                              </p>
+                              <input
+                                type="email"
+                                value={transferEmail}
+                                onChange={(event) =>
+                                  setTransferEmail(event.target.value)
+                                }
+                                placeholder="newadmin@mail.com"
+                                className={inputClass}
+                              />
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  onClick={() => handleTransferGroup(group)}
+                                  disabled={isTransferringGroup}
+                                  className="rounded-2xl bg-rose-600 px-4 py-3 font-bold text-white transition hover:bg-rose-700 disabled:opacity-50"
+                                >
+                                  {isTransferringGroup
+                                    ? "Передаём..."
+                                    : "Передать"}
+                                </button>
+                                <button
+                                  onClick={handleCancelTransferGroup}
+                                  disabled={isTransferringGroup}
+                                  className={secondaryButtonClass}
+                                >
+                                  Отмена
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <h3 className="truncate font-black text-slate-950">
+                                      {group.name}
+                                    </h3>
+                                    {isSelected && (
+                                      <span className="rounded-full bg-emerald-500 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-white">
+                                        Выбрана
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="mt-1 truncate text-sm font-medium text-slate-500">
+                                    /g/{group.slug}
+                                  </p>
+                                  <p className="mt-2 text-xs text-slate-500">
+                                    Неделя начинается:{" "}
+                                    {getWeekStartDayLabel(group.week_start_day)}
+                                  </p>
+                                </div>
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-lg">
+                                  ↗
+                                </div>
+                              </div>
+
+                              <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                <Link
+                                  href={`/g/${group.slug}`}
+                                  className="rounded-xl bg-slate-950 px-3 py-2.5 text-center text-xs font-bold text-white transition hover:bg-slate-800"
+                                >
+                                  Открыть
+                                </Link>
+                                <button
+                                  onClick={() => setSelectedGroupId(group.id)}
+                                  className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-800 transition hover:bg-emerald-100"
+                                >
+                                  Настроить
+                                </button>
+                                <button
+                                  onClick={() => handleShareGroup(group)}
+                                  className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
+                                >
+                                  Поделиться
+                                </button>
+                                <button
+                                  onClick={() => handleStartEditGroup(group)}
+                                  className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
+                                >
+                                  Изменить
+                                </button>
+                                <button
+                                  onClick={() =>
+                                    handleStartTransferGroup(group)
+                                  }
+                                  className="rounded-xl border border-rose-200 bg-white px-3 py-2.5 text-xs font-bold text-rose-700 transition hover:bg-rose-50"
+                                >
+                                  Передать
+                                </button>
+                                <button
+                                  onClick={() => handleArchiveGroup(group)}
+                                  disabled={isArchivingGroup}
+                                  className="rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-xs font-bold text-amber-700 transition hover:bg-amber-50 disabled:opacity-50"
+                                >
+                                  {isArchivingGroup ? "..." : "В архив"}
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </article>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            </div>
+
+            <section className="rounded-3xl border border-white/80 bg-white p-5 shadow-lg shadow-slate-200/50 sm:p-6 lg:sticky lg:top-4">
+              {selectedGroup ? (
+                <>
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-600">
+                        Настройки группы
+                      </p>
+                      <h2 className="mt-1 text-2xl font-black text-slate-950">
+                        {selectedGroup.name}
+                      </h2>
+                    </div>
+
+                    <div className="w-full sm:max-w-xs">
+                      <label className="mb-2 block text-xs font-bold text-slate-500">
+                        Выбранная группа
+                      </label>
+                      <select
+                        value={selectedGroupId}
+                        onChange={(event) => {
+                          setSelectedGroupId(event.target.value);
+                          setEditingMemberId("");
+                          setEditingTaskId("");
+                          setPinEditingMemberId("");
+                          setPinValue("");
+                          setMessage("");
+                        }}
+                        className={inputClass}
+                      >
+                        {activeGroups.map((group) => (
+                          <option key={group.id} value={group.id}>
+                            {group.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid grid-cols-2 gap-1 rounded-2xl bg-slate-100 p-1.5">
+                    <button
+                      onClick={() => setManagementTab("members")}
+                      className={`rounded-xl px-3 py-3 text-sm font-black transition ${
+                        managementTab === "members"
+                          ? "bg-slate-950 text-white shadow-sm"
+                          : "text-slate-500 hover:bg-white hover:text-slate-900"
+                      }`}
+                    >
+                      Участники ({activeMembers.length})
+                    </button>
+                    <button
+                      onClick={() => setManagementTab("tasks")}
+                      className={`rounded-xl px-3 py-3 text-sm font-black transition ${
+                        managementTab === "tasks"
+                          ? "bg-slate-950 text-white shadow-sm"
+                          : "text-slate-500 hover:bg-white hover:text-slate-900"
+                      }`}
+                    >
+                      Задачи ({activeTasks.length})
+                    </button>
+                  </div>
+
+                  {managementTab === "members" && (
+                    <div className="mt-5">
+                      <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-4">
+                        <label className="mb-2 block text-sm font-black text-emerald-950">
+                          Добавить участника
+                        </label>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <input
+                            value={newMemberName}
+                            onChange={(event) =>
+                              setNewMemberName(event.target.value)
+                            }
+                            placeholder="Имя участника"
+                            className={`${inputClass} min-w-0 flex-1 bg-white`}
+                          />
+                          <button
+                            onClick={handleAddMember}
+                            disabled={isAddingMember}
+                            className={`${primaryButtonClass} shrink-0 sm:px-6`}
+                          >
+                            {isAddingMember ? "Добавляем..." : "Добавить"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {isMembersLoading && (
+                        <div className="mt-4 space-y-3">
+                          {[1, 2].map((item) => (
+                            <div
+                              key={item}
+                              className="h-24 animate-pulse rounded-3xl bg-slate-100"
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {!isMembersLoading && activeMembers.length === 0 && (
+                        <div className="mt-4 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm text-slate-600">
+                          Активных участников пока нет.
+                        </div>
+                      )}
+
+                      {!isMembersLoading && activeMembers.length > 0 && (
+                        <div className="mt-4 space-y-3">
+                          {activeMembers.map((member) =>
+                            renderMemberCard(member),
+                          )}
+                        </div>
+                      )}
+
+                      {!isMembersLoading && inactiveMembers.length > 0 && (
+                        <div className="mt-7">
+                          <h3 className="mb-3 text-sm font-black text-slate-500">
+                            Отключённые участники
+                          </h3>
+                          <div className="space-y-3">
+                            {inactiveMembers.map((member) =>
+                              renderMemberCard(member),
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {managementTab === "tasks" && (
+                    <div className="mt-5">
+                      <div className="rounded-3xl border border-sky-200 bg-sky-50 p-4">
+                        <label className="mb-2 block text-sm font-black text-sky-950">
+                          Добавить задачу
+                        </label>
+                        <div className="space-y-2">
+                          <input
+                            value={newTaskName}
+                            onChange={(event) =>
+                              setNewTaskName(event.target.value)
+                            }
+                            placeholder="Например: Чтение книги"
+                            className={`${inputClass} bg-white`}
+                          />
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              value={newTaskUnit}
+                              onChange={(event) =>
+                                setNewTaskUnit(event.target.value)
+                              }
+                              placeholder="Например: страниц"
+                              className={`${inputClass} bg-white`}
+                            />
+                            <input
+                              type="number"
+                              min="0"
+                              value={newTaskWeeklyGoal}
+                              onChange={(event) =>
+                                setNewTaskWeeklyGoal(event.target.value)
+                              }
+                              placeholder="Например: 70"
+                              className={`${inputClass} bg-white`}
+                            />
+                          </div>
+                          <button
+                            onClick={handleAddTask}
+                            disabled={isAddingTask}
+                            className={`w-full ${primaryButtonClass}`}
+                          >
+                            {isAddingTask ? "Добавляем..." : "Добавить задачу"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {isTasksLoading && (
+                        <div className="mt-4 space-y-3">
+                          {[1, 2].map((item) => (
+                            <div
+                              key={item}
+                              className="h-24 animate-pulse rounded-3xl bg-slate-100"
+                            />
+                          ))}
+                        </div>
+                      )}
+
+                      {!isTasksLoading && activeTasks.length === 0 && (
+                        <div className="mt-4 rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm text-slate-600">
+                          Активных задач пока нет.
+                        </div>
+                      )}
+
+                      {!isTasksLoading && activeTasks.length > 0 && (
+                        <div className="mt-4 space-y-3">
+                          {activeTasks.map((task) => renderTaskCard(task))}
+                        </div>
+                      )}
+
+                      {!isTasksLoading && inactiveTasks.length > 0 && (
+                        <div className="mt-7">
+                          <h3 className="mb-3 text-sm font-black text-slate-500">
+                            Отключённые задачи
+                          </h3>
+                          <div className="space-y-3">
+                            {inactiveTasks.map((task) => renderTaskCard(task))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex min-h-80 flex-col items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white text-2xl shadow-sm">
+                    +
+                  </div>
+                  <h2 className="mt-4 text-xl font-black text-slate-950">
+                    Создайте первую группу
+                  </h2>
+                  <p className="mt-2 max-w-sm text-sm leading-6 text-slate-600">
+                    После создания здесь появятся участники, задачи и настройки
+                    недельных целей.
+                  </p>
+                </div>
+              )}
+            </section>
+          </div>
+
           {archivedGroups.length > 0 && (
-            <div className="mb-6">
-              <h2 className="mb-3 text-xl font-bold text-slate-900">
-                Архив групп
-              </h2>
+            <section className="mt-4 rounded-3xl border border-white/80 bg-white p-5 shadow-lg shadow-slate-200/50 sm:p-6">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">
+                    Неактивные пространства
+                  </p>
+                  <h2 className="mt-1 text-xl font-black text-slate-950">
+                    Архив групп
+                  </h2>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+                  {archivedGroups.length}
+                </span>
+              </div>
 
-              <div className="space-y-3">
+              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {archivedGroups.map((group) => (
-                  <div
+                  <article
                     key={group.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                    className="rounded-3xl border border-slate-200 bg-slate-50 p-4"
                   >
-                    <p className="font-semibold text-slate-900">
-                      {group.name}
-                    </p>
-
-                    <p className="mt-1 text-sm text-slate-600">
-                      /g/{group.slug}
-                    </p>
-
-                    <p className="mt-1 text-sm text-slate-600">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate font-black text-slate-950">
+                          {group.name}
+                        </p>
+                        <p className="mt-1 truncate text-sm text-slate-500">
+                          /g/{group.slug}
+                        </p>
+                      </div>
+                      <span className="rounded-full bg-slate-200 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-600">
+                        Архив
+                      </span>
+                    </div>
+                    <p className="mt-3 text-xs text-slate-500">
                       В архиве с: {getArchivedDateLabel(group.archived_at)}
                     </p>
-
                     <div className="mt-4 grid grid-cols-2 gap-2">
                       <button
                         onClick={() => handleRestoreGroup(group)}
                         disabled={isRestoringGroup}
-                        className="rounded-xl bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+                        className="rounded-xl bg-slate-950 px-3 py-2.5 text-xs font-bold text-white transition hover:bg-slate-800 disabled:opacity-50"
                       >
                         {isRestoringGroup ? "..." : "Восстановить"}
                       </button>
-
                       <button
                         onClick={() => handleDeleteArchivedGroup(group)}
                         disabled={isDeletingGroup}
-                        className="rounded-xl border border-red-200 bg-white px-3 py-2 text-center text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:bg-red-100"
+                        className="rounded-xl border border-rose-200 bg-white px-3 py-2.5 text-xs font-bold text-rose-700 transition hover:bg-rose-50 disabled:opacity-50"
                       >
                         {isDeletingGroup ? "..." : "Удалить"}
                       </button>
                     </div>
-                  </div>
+                  </article>
                 ))}
               </div>
-            </div>
+            </section>
           )}
 
-          {message && (
-            <p className="mb-4 rounded-xl bg-slate-100 p-3 text-sm font-medium text-slate-700">
-              {message}
-            </p>
-          )}
-
-          <button
-            onClick={handleSignOut}
-            className="w-full rounded-xl bg-red-600 px-4 py-3 text-lg font-semibold text-white transition hover:bg-red-700"
-          >
-            Выйти
-          </button>
-
-          <Link
-            href="/"
-            className="mt-3 block w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-lg font-semibold text-slate-800 transition hover:bg-slate-50"
-          >
-            ← На главную
-          </Link>
-
-          <p className="mt-6 text-center text-xs text-slate-400">
-            QadamTrack — двигайтесь к цели вместе
-          </p>
+          <footer className="py-7 text-center text-xs font-medium text-slate-400">
+            QadamTrack · двигайтесь к цели вместе, шаг за шагом
+          </footer>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 px-4 py-8">
-      <div className="mx-auto max-w-md rounded-2xl bg-white p-6 shadow-sm">
-        <p className="mb-2 text-sm font-semibold tracking-wide text-slate-500">
-          QADAMTRACK / АДМИН-ПАНЕЛЬ
-        </p>
+    <AuthShell
+      eyebrow="Админ-панель"
+      title="Войдите в аккаунт"
+      description="Управляйте группами, участниками, задачами и недельными нормами."
+    >
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          void handleSignIn();
+        }}
+        className="space-y-5"
+      >
+        <div>
+          <label className="mb-2 block text-sm font-bold text-slate-700">
+            Email
+          </label>
+          <input
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            placeholder="example@mail.com"
+            className={inputClass}
+          />
+        </div>
 
-        <h1 className="mb-2 text-2xl font-bold text-slate-900">
-          Вход администратора
-        </h1>
-
-        <p className="mb-6 text-slate-600">
-          Войдите, чтобы управлять группами, участниками и задачами.
-        </p>
-
-        <div className="space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Email
-            </label>
-
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="example@mail.com"
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-lg outline-none focus:border-slate-900"
-            />
-          </div>
-
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
-              Пароль
-            </label>
-
-            <input
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="Введите пароль"
-              className="w-full rounded-xl border border-slate-200 px-4 py-3 text-lg outline-none focus:border-slate-900"
-            />
-          </div>
+        <div>
+          <label className="mb-2 block text-sm font-bold text-slate-700">
+            Пароль
+          </label>
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="Введите пароль"
+            className={inputClass}
+          />
         </div>
 
         {message && (
-          <p className="mt-4 rounded-xl bg-slate-100 p-3 text-sm font-medium text-slate-700">
+          <p className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700">
             {message}
           </p>
         )}
 
         <button
-          onClick={handleSignIn}
+          type="submit"
           disabled={isSubmitting}
-          className="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 text-lg font-semibold text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-400"
+          className="w-full rounded-2xl bg-slate-950 px-4 py-3.5 text-lg font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isSubmitting ? "Входим..." : "Войти"}
         </button>
+      </form>
 
-        <Link
-          href="/reset-password"
-          className="mt-4 block text-center text-sm font-medium text-slate-500 hover:text-slate-800"
-        >
-          Забыли пароль?
-        </Link>
+      <Link
+        href="/reset-password"
+        className="mt-4 block text-center text-sm font-bold text-emerald-700 transition hover:text-emerald-900"
+      >
+        Забыли пароль?
+      </Link>
 
+      <div className="mt-8 border-t border-slate-200 pt-6">
+        <p className="text-center text-sm text-slate-500">Ещё нет аккаунта?</p>
         <Link
           href="/register"
-          className="mt-5 block w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-lg font-semibold text-slate-800 transition hover:bg-slate-50"
+          className="mt-3 block w-full rounded-2xl border border-slate-200 bg-white px-4 py-3.5 text-center font-bold text-slate-800 transition hover:border-slate-300 hover:bg-slate-50"
         >
           Создать аккаунт администратора
         </Link>
-
-        <Link
-          href="/"
-          className="mt-3 block w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-center text-lg font-semibold text-slate-800 transition hover:bg-slate-50"
-        >
-          ← На главную
-        </Link>
-
-        <p className="mt-6 text-center text-xs text-slate-400">
-          QadamTrack — двигайтесь к цели вместе
-        </p>
       </div>
-    </main>
+    </AuthShell>
   );
 }

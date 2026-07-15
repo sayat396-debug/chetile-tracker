@@ -1,4 +1,4 @@
-import type { Metadata, Viewport } from "next";
+import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -21,10 +21,6 @@ export const metadata: Metadata = {
     "QadamTrack — групповой трекер целей, недельных норм и общего прогресса.",
 };
 
-export const viewport: Viewport = {
-  themeColor: "#020617",
-};
-
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -33,7 +29,7 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
       </body>
