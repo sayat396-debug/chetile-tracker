@@ -1754,9 +1754,6 @@ export default function AdminPage() {
                                       </span>
                                     )}
                                   </div>
-                                  <p className="mt-1 truncate text-sm font-medium text-slate-500">
-                                    /g/{group.slug}
-                                  </p>
                                   <p className="mt-2 text-xs text-slate-500">
                                     Неделя начинается:{" "}
                                     {getWeekStartDayLabel(group.week_start_day)}
@@ -2068,9 +2065,6 @@ export default function AdminPage() {
                       <div className="min-w-0">
                         <p className="truncate font-black text-slate-950">
                           {group.name}
-                        </p>
-                        <p className="mt-1 truncate text-sm text-slate-500">
-                          /g/{group.slug}
                         </p>
                       </div>
                       <span className="rounded-full bg-slate-200 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-slate-600">

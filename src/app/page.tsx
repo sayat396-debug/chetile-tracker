@@ -274,9 +274,6 @@ export default function HomePage() {
                               <span className="block truncate font-black text-slate-900">
                                 {group.name}
                               </span>
-                              <span className="mt-1 block text-xs font-medium text-slate-500">
-                                /g/{group.slug}
-                              </span>
                             </span>
                             <span className="text-xl text-slate-300 transition group-hover:translate-x-1 group-hover:text-emerald-500">
                               →
