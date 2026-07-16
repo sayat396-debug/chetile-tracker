@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import BrandMark from "@/components/BrandMark";
 import { supabase } from "@/lib/supabaseClient";
 
 const dayNames = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
@@ -208,23 +209,6 @@ function getMemberInitials(name: string) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join("");
-}
-
-function BrandMark() {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-400 text-lg font-black text-slate-950 shadow-sm">
-        Q
-      </div>
-
-      <div>
-        <p className="text-base font-bold tracking-tight text-white">
-          QadamTrack
-        </p>
-        <p className="text-xs text-slate-300">Шаг за шагом к общей цели</p>
-      </div>
-    </div>
-  );
 }
 
 export default function GroupPage() {
@@ -690,7 +674,7 @@ export default function GroupPage() {
       <main className="min-h-screen bg-gradient-to-br from-emerald-50 via-slate-50 to-sky-50 px-4 py-8">
         <div className="mx-auto max-w-xl overflow-hidden rounded-3xl border border-white/80 bg-white shadow-xl shadow-slate-200/60">
           <div className="bg-slate-950 p-6">
-            <BrandMark />
+            <BrandMark inverse />
           </div>
 
           <div className="space-y-4 p-6">
@@ -717,7 +701,7 @@ export default function GroupPage() {
       <main className="min-h-screen bg-gradient-to-br from-rose-50 via-slate-50 to-orange-50 px-4 py-8">
         <div className="mx-auto max-w-xl overflow-hidden rounded-3xl border border-white/80 bg-white shadow-xl shadow-slate-200/60">
           <div className="bg-slate-950 p-6">
-            <BrandMark />
+            <BrandMark inverse />
           </div>
 
           <div className="p-6">
@@ -751,7 +735,7 @@ export default function GroupPage() {
       <main className="min-h-screen bg-gradient-to-br from-slate-100 via-slate-50 to-emerald-50 px-4 py-8">
         <div className="mx-auto max-w-xl overflow-hidden rounded-3xl border border-white/80 bg-white shadow-xl shadow-slate-200/60">
           <div className="bg-slate-950 p-6">
-            <BrandMark />
+            <BrandMark inverse />
           </div>
 
           <div className="p-6">
@@ -784,7 +768,7 @@ export default function GroupPage() {
       <main className="min-h-screen bg-gradient-to-br from-emerald-50 via-slate-50 to-sky-50 px-4 py-8">
         <div className="mx-auto max-w-xl overflow-hidden rounded-3xl border border-white/80 bg-white shadow-xl shadow-slate-200/60">
           <div className="bg-slate-950 p-6">
-            <BrandMark />
+            <BrandMark inverse />
           </div>
 
           <div className="p-6 sm:p-8">
@@ -873,7 +857,7 @@ export default function GroupPage() {
             <div className="absolute -bottom-20 left-10 h-40 w-40 rounded-full bg-sky-400/10 blur-3xl" />
 
             <div className="relative">
-              <BrandMark />
+              <BrandMark inverse />
 
               <div className="mt-8">
                 <p className="text-sm font-semibold uppercase tracking-[0.18em] text-emerald-400">
@@ -980,7 +964,7 @@ export default function GroupPage() {
           <div className="absolute -bottom-24 left-12 h-48 w-48 rounded-full bg-sky-400/10 blur-3xl" />
 
           <div className="relative">
-            <BrandMark />
+            <BrandMark inverse />
 
             <div className="mt-7 flex items-end justify-between gap-4">
               <div className="min-w-0">

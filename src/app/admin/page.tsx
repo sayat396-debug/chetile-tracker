@@ -52,7 +52,7 @@ export default function AdminPage() {
   const [managementTab, setManagementTab] = useState<ManagementTab>("members");
 
   const [newGroupName, setNewGroupName] = useState("");
-  const [newGroupWeekStartDay, setNewGroupWeekStartDay] = useState("6");
+  const [newGroupWeekStartDay, setNewGroupWeekStartDay] = useState("1");
 
   const [selectedGroupId, setSelectedGroupId] = useState("");
 
@@ -468,7 +468,7 @@ export default function AdminPage() {
       }
 
       setNewGroupName("");
-      setNewGroupWeekStartDay("6");
+      setNewGroupWeekStartDay("1");
       setIsCreateGroupOpen(false);
 
       await loadGroupsAgain(data.id);
