@@ -1370,6 +1370,15 @@ export default function GroupPage() {
                       <p className="mt-0.5 text-xs font-medium text-slate-500">
                         {getStatus(percent)}
                       </p>
+
+                      <div className="mt-2 h-1 overflow-hidden rounded-full bg-slate-200/80">
+                        <div
+                          className={`h-full rounded-full transition-all duration-500 ${getProgressBarClass(
+                            percent,
+                          )}`}
+                          style={{ width: `${Math.min(percent, 100)}%` }}
+                        />
+                      </div>
                     </div>
 
                     <p className="text-2xl font-black text-slate-950">
