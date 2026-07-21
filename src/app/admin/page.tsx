@@ -37,6 +37,15 @@ type Task = {
 };
 
 type ManagementTab = "members" | "tasks";
+type ExportPeriod = "week" | "month" | "all";
+
+type ExportEntry = {
+  member_id: string;
+  task_id: string;
+  entry_date: string;
+  week_start_date: string | null;
+  value: number;
+};
 
 export default function AdminPage() {
   const [session, setSession] = useState<Session | null>(null);
@@ -50,6 +59,10 @@ export default function AdminPage() {
 
   const [isCreateGroupOpen, setIsCreateGroupOpen] = useState(false);
   const [managementTab, setManagementTab] = useState<ManagementTab>("members");
+
+  const [exportingGroup, setExportingGroup] = useState<Group | null>(null);
+  const [exportPeriod, setExportPeriod] = useState<ExportPeriod>("week");
+  const [isExporting, setIsExporting] = useState(false);
 
   const [newGroupName, setNewGroupName] = useState("");
   const [newGroupWeekStartDay, setNewGroupWeekStartDay] = useState("1");
@@ -427,6 +440,544 @@ export default function AdminPage() {
       setMessage(`Ссылка скопирована: ${groupLink}`);
     } catch {
       setMessage(`Ссылка группы: ${groupLink}`);
+    }
+  }
+
+  function toDateKey(date: Date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    return `${year}-${month}-${day}`;
+  }
+
+  function parseDateKey(dateKey: string) {
+    return new Date(`${dateKey}T12:00:00`);
+  }
+
+  function formatDateKey(dateKey: string) {
+    const date = parseDateKey(dateKey);
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+
+    return `${day}.${month}.${year}`;
+  }
+
+  function getWeekStartDateForDate(date: Date, weekStartDay: number) {
+    const normalizedDate = new Date(date);
+    normalizedDate.setHours(12, 0, 0, 0);
+
+    const diff = (normalizedDate.getDay() - weekStartDay + 7) % 7;
+    const weekStart = new Date(normalizedDate);
+    weekStart.setDate(normalizedDate.getDate() - diff);
+
+    return weekStart;
+  }
+
+  function getExportRange(group: Group, period: ExportPeriod) {
+    const today = new Date();
+    today.setHours(12, 0, 0, 0);
+
+    if (period === "week") {
+      const startDate = getWeekStartDateForDate(today, group.week_start_day);
+      const endDate = new Date(startDate);
+      endDate.setDate(startDate.getDate() + 6);
+
+      return {
+        startDateKey: toDateKey(startDate),
+        endDateKey: toDateKey(endDate),
+        label: `${formatDateKey(toDateKey(startDate))}–${formatDateKey(
+          toDateKey(endDate),
+        )}`,
+      };
+    }
+
+    if (period === "month") {
+      const startDate = new Date(today.getFullYear(), today.getMonth(), 1, 12);
+      const endDate = new Date(
+        today.getFullYear(),
+        today.getMonth() + 1,
+        0,
+        12,
+      );
+
+      return {
+        startDateKey: toDateKey(startDate),
+        endDateKey: toDateKey(endDate),
+        label: `${formatDateKey(toDateKey(startDate))}–${formatDateKey(
+          toDateKey(endDate),
+        )}`,
+      };
+    }
+
+    return {
+      startDateKey: null,
+      endDateKey: null,
+      label: "Вся история",
+    };
+  }
+
+  function getInclusiveDays(startDateKey: string, endDateKey: string) {
+    const startDate = parseDateKey(startDateKey);
+    const endDate = parseDateKey(endDateKey);
+    const millisecondsPerDay = 24 * 60 * 60 * 1000;
+
+    return (
+      Math.round(
+        (endDate.getTime() - startDate.getTime()) / millisecondsPerDay,
+      ) + 1
+    );
+  }
+
+  function sanitizeFileName(value: string) {
+    return value
+      .trim()
+      .replace(/[\\/:*?"<>|]/g, "-")
+      .replace(/\s+/g, "_")
+      .slice(0, 60);
+  }
+
+  async function loadEntriesForExport(
+    groupId: string,
+    startDateKey: string | null,
+    endDateKey: string | null,
+  ) {
+    const pageSize = 1000;
+    const result: ExportEntry[] = [];
+    let from = 0;
+
+    while (true) {
+      let query = supabase
+        .from("entries")
+        .select("member_id, task_id, entry_date, week_start_date, value")
+        .eq("group_id", groupId)
+        .order("entry_date", { ascending: true })
+        .range(from, from + pageSize - 1);
+
+      if (startDateKey) {
+        query = query.gte("entry_date", startDateKey);
+      }
+
+      if (endDateKey) {
+        query = query.lte("entry_date", endDateKey);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        throw error;
+      }
+
+      const batch = (data || []) as ExportEntry[];
+      result.push(...batch);
+
+      if (batch.length < pageSize) {
+        break;
+      }
+
+      from += pageSize;
+    }
+
+    return result;
+  }
+
+  function handleOpenExport(group: Group) {
+    setExportingGroup(group);
+    setExportPeriod("week");
+    setMessage("");
+  }
+
+  function handleCloseExport() {
+    if (isExporting) return;
+
+    setExportingGroup(null);
+    setExportPeriod("week");
+  }
+
+  async function handleExportToExcel() {
+    if (!exportingGroup) return;
+
+    setIsExporting(true);
+    setMessage("");
+
+    try {
+      const range = getExportRange(exportingGroup, exportPeriod);
+
+      const [membersResult, tasksResult, exportEntries] = await Promise.all([
+        supabase
+          .from("group_members_public")
+          .select("id, group_id, name, display_order, is_active, has_pin")
+          .eq("group_id", exportingGroup.id)
+          .order("display_order", { ascending: true }),
+        supabase
+          .from("tasks")
+          .select(
+            "id, group_id, name, unit, weekly_goal, display_order, is_active",
+          )
+          .eq("group_id", exportingGroup.id)
+          .order("display_order", { ascending: true }),
+        loadEntriesForExport(
+          exportingGroup.id,
+          range.startDateKey,
+          range.endDateKey,
+        ),
+      ]);
+
+      if (membersResult.error) {
+        throw membersResult.error;
+      }
+
+      if (tasksResult.error) {
+        throw tasksResult.error;
+      }
+
+      const exportMembers = (membersResult.data || []) as Member[];
+      const exportTasks = (tasksResult.data || []) as Task[];
+
+      let actualStartDateKey = range.startDateKey;
+      let actualEndDateKey = range.endDateKey;
+
+      if (exportPeriod === "all") {
+        const entryDates = exportEntries
+          .map((entry) => entry.entry_date)
+          .filter(Boolean)
+          .sort();
+
+        actualStartDateKey =
+          entryDates[0] ||
+          (exportingGroup.created_at
+            ? toDateKey(new Date(exportingGroup.created_at))
+            : toDateKey(new Date()));
+        actualEndDateKey = entryDates.at(-1) || toDateKey(new Date());
+      }
+
+      if (!actualStartDateKey || !actualEndDateKey) {
+        throw new Error("Не удалось определить период выгрузки.");
+      }
+
+      const periodLabel =
+        exportPeriod === "all"
+          ? `${formatDateKey(actualStartDateKey)}–${formatDateKey(
+              actualEndDateKey,
+            )}`
+          : range.label;
+
+      const periodDays = Math.max(
+        1,
+        getInclusiveDays(actualStartDateKey, actualEndDateKey),
+      );
+      const targetWeeks = periodDays / 7;
+
+      const memberById = new Map(
+        exportMembers.map((member) => [member.id, member]),
+      );
+      const taskById = new Map(exportTasks.map((task) => [task.id, task]));
+
+      const totals = new Map<string, number>();
+
+      exportEntries.forEach((entry) => {
+        const key = `${entry.member_id}_${entry.task_id}`;
+        totals.set(key, (totals.get(key) || 0) + Number(entry.value || 0));
+      });
+
+      const { Workbook } = await import("exceljs");
+      const workbook = new Workbook();
+      workbook.creator = "QadamTrack";
+      workbook.created = new Date();
+      workbook.modified = new Date();
+
+      const darkColor = "0F172A";
+      const greenColor = "10B981";
+      const lightGreenColor = "ECFDF5";
+      const borderColor = "CBD5E1";
+
+      const summarySheet = workbook.addWorksheet("Сводка", {
+        views: [{ state: "frozen", ySplit: 8 }],
+      });
+      const summaryColumnCount = Math.max(2, exportTasks.length + 2);
+
+      summarySheet.mergeCells(1, 1, 1, summaryColumnCount);
+      const summaryTitle = summarySheet.getCell(1, 1);
+      summaryTitle.value = `QadamTrack — ${exportingGroup.name}`;
+      summaryTitle.font = { bold: true, size: 18, color: { argb: "FFFFFFFF" } };
+      summaryTitle.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: `FF${darkColor}` },
+      };
+      summaryTitle.alignment = { vertical: "middle", horizontal: "left" };
+      summarySheet.getRow(1).height = 30;
+
+      const metadataRows = [
+        ["Группа", exportingGroup.name],
+        ["Период", periodLabel],
+        ["Участников", exportMembers.length],
+        ["Задач", exportTasks.length],
+        ["Дата выгрузки", new Date()],
+      ];
+
+      metadataRows.forEach((row, index) => {
+        const excelRow = summarySheet.getRow(index + 3);
+        excelRow.values = row;
+        excelRow.getCell(1).font = {
+          bold: true,
+          color: { argb: `FF${darkColor}` },
+        };
+      });
+      summarySheet.getCell("B7").numFmt = "dd.mm.yyyy hh:mm";
+
+      const summaryHeaders = [
+        "Участник",
+        "Общий прогресс",
+        ...exportTasks.map((task) => task.name),
+      ];
+      const summaryHeaderRow = summarySheet.getRow(9);
+      summaryHeaderRow.values = summaryHeaders;
+      summaryHeaderRow.height = 28;
+      summaryHeaderRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: `FF${greenColor}` },
+        };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+        cell.border = {
+          top: { style: "thin", color: { argb: `FF${borderColor}` } },
+          bottom: { style: "thin", color: { argb: `FF${borderColor}` } },
+          left: { style: "thin", color: { argb: `FF${borderColor}` } },
+          right: { style: "thin", color: { argb: `FF${borderColor}` } },
+        };
+      });
+
+      const memberProgressValues: number[] = [];
+
+      exportMembers.forEach((member) => {
+        const taskProgresses = exportTasks.map((task) => {
+          const total = totals.get(`${member.id}_${task.id}`) || 0;
+          const target = Number(task.weekly_goal || 0) * targetWeeks;
+
+          if (target <= 0) return 0;
+
+          return Math.min(total / target, 1);
+        });
+
+        const overallProgress =
+          taskProgresses.length > 0
+            ? taskProgresses.reduce((sum, value) => sum + value, 0) /
+              taskProgresses.length
+            : 0;
+
+        memberProgressValues.push(overallProgress);
+
+        const row = summarySheet.addRow([
+          member.name,
+          overallProgress,
+          ...taskProgresses,
+        ]);
+
+        row.eachCell((cell, columnNumber) => {
+          cell.border = {
+            top: { style: "thin", color: { argb: `FF${borderColor}` } },
+            bottom: { style: "thin", color: { argb: `FF${borderColor}` } },
+            left: { style: "thin", color: { argb: `FF${borderColor}` } },
+            right: { style: "thin", color: { argb: `FF${borderColor}` } },
+          };
+          cell.alignment = {
+            vertical: "middle",
+            horizontal: columnNumber === 1 ? "left" : "center",
+          };
+
+          if (columnNumber >= 2) {
+            cell.numFmt = "0%";
+          }
+        });
+      });
+
+      const groupProgress =
+        memberProgressValues.length > 0
+          ? memberProgressValues.reduce((sum, value) => sum + value, 0) /
+            memberProgressValues.length
+          : 0;
+      const groupRow = summarySheet.addRow([
+        "Итого по группе",
+        groupProgress,
+        ...exportTasks.map(() => null),
+      ]);
+      groupRow.font = { bold: true, color: { argb: `FF${darkColor}` } };
+      groupRow.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: `FF${lightGreenColor}` },
+      };
+      groupRow.getCell(2).numFmt = "0%";
+
+      summarySheet.getColumn(1).width = 26;
+      summarySheet.getColumn(2).width = 18;
+      for (let index = 3; index <= summaryColumnCount; index++) {
+        summarySheet.getColumn(index).width = 18;
+      }
+      summarySheet.autoFilter = {
+        from: { row: 9, column: 1 },
+        to: { row: 9 + exportMembers.length, column: summaryColumnCount },
+      };
+
+      const entriesSheet = workbook.addWorksheet("Отметки", {
+        views: [{ state: "frozen", ySplit: 1 }],
+      });
+      entriesSheet.columns = [
+        { header: "Дата", key: "date", width: 14 },
+        { header: "Неделя с", key: "weekStart", width: 14 },
+        { header: "Участник", key: "member", width: 24 },
+        { header: "Задача", key: "task", width: 26 },
+        { header: "Значение", key: "value", width: 14 },
+        { header: "Единица", key: "unit", width: 18 },
+        { header: "Недельная норма", key: "weeklyGoal", width: 19 },
+      ];
+
+      const entriesHeader = entriesSheet.getRow(1);
+      entriesHeader.height = 28;
+      entriesHeader.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: `FF${darkColor}` },
+        };
+        cell.alignment = { vertical: "middle", horizontal: "center" };
+      });
+
+      exportEntries.forEach((entry) => {
+        const member = memberById.get(entry.member_id);
+        const task = taskById.get(entry.task_id);
+
+        if (!member || !task) return;
+
+        entriesSheet.addRow({
+          date: parseDateKey(entry.entry_date),
+          weekStart: entry.week_start_date
+            ? parseDateKey(entry.week_start_date)
+            : null,
+          member: member.name,
+          task: task.name,
+          value: Number(entry.value || 0),
+          unit: task.unit || "",
+          weeklyGoal: Number(task.weekly_goal || 0),
+        });
+      });
+
+      entriesSheet.getColumn("date").numFmt = "dd.mm.yyyy";
+      entriesSheet.getColumn("weekStart").numFmt = "dd.mm.yyyy";
+      entriesSheet.autoFilter = {
+        from: "A1",
+        to: "G1",
+      };
+
+      const settingsSheet = workbook.addWorksheet("Настройки");
+      settingsSheet.mergeCells("A1:D1");
+      const settingsTitle = settingsSheet.getCell("A1");
+      settingsTitle.value = `Настройки группы — ${exportingGroup.name}`;
+      settingsTitle.font = {
+        bold: true,
+        size: 16,
+        color: { argb: "FFFFFFFF" },
+      };
+      settingsTitle.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: `FF${darkColor}` },
+      };
+      settingsSheet.getRow(1).height = 28;
+
+      settingsSheet.addRow([]);
+      settingsSheet.addRow(["Название группы", exportingGroup.name]);
+      settingsSheet.addRow([
+        "Неделя начинается",
+        getWeekStartDayLabel(exportingGroup.week_start_day),
+      ]);
+      settingsSheet.addRow(["Период выгрузки", periodLabel]);
+      settingsSheet.addRow([]);
+
+      const membersHeaderRow = settingsSheet.addRow([
+        "Участники",
+        "Статус",
+        "Порядок",
+      ]);
+      membersHeaderRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: `FF${greenColor}` },
+        };
+      });
+
+      exportMembers.forEach((member) => {
+        settingsSheet.addRow([
+          member.name,
+          member.is_active ? "Активен" : "Отключён",
+          member.display_order ?? "",
+        ]);
+      });
+
+      settingsSheet.addRow([]);
+      const tasksHeaderRow = settingsSheet.addRow([
+        "Задачи",
+        "Единица",
+        "Недельная норма",
+        "Статус",
+      ]);
+      tasksHeaderRow.eachCell((cell) => {
+        cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: `FF${greenColor}` },
+        };
+      });
+
+      exportTasks.forEach((task) => {
+        settingsSheet.addRow([
+          task.name,
+          task.unit || "",
+          Number(task.weekly_goal || 0),
+          task.is_active ? "Активна" : "Отключена",
+        ]);
+      });
+
+      settingsSheet.getColumn(1).width = 30;
+      settingsSheet.getColumn(2).width = 22;
+      settingsSheet.getColumn(3).width = 20;
+      settingsSheet.getColumn(4).width = 18;
+
+      const fileBuffer = await workbook.xlsx.writeBuffer();
+      const fileBlob = new Blob([fileBuffer as BlobPart], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const fileUrl = URL.createObjectURL(fileBlob);
+      const downloadLink = document.createElement("a");
+      const periodFileName = `${actualStartDateKey}_${actualEndDateKey}`;
+
+      downloadLink.href = fileUrl;
+      downloadLink.download = `QadamTrack_${sanitizeFileName(
+        exportingGroup.name,
+      )}_${periodFileName}.xlsx`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      downloadLink.remove();
+      URL.revokeObjectURL(fileUrl);
+
+      setExportingGroup(null);
+      setExportPeriod("week");
+      setMessage("Excel-файл сформирован и скачан.");
+    } catch (error) {
+      console.error(error);
+      setMessage(
+        "Не удалось сформировать Excel. Проверьте доступ к участникам, задачам и отметкам.",
+      );
+    } finally {
+      setIsExporting(false);
     }
   }
 
@@ -1759,9 +2310,28 @@ export default function AdminPage() {
                                     {getWeekStartDayLabel(group.week_start_day)}
                                   </p>
                                 </div>
-                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-lg">
-                                  ↗
-                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => void handleShareGroup(group)}
+                                  aria-label={`Поделиться группой ${group.name}`}
+                                  title="Поделиться группой"
+                                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700 transition hover:bg-emerald-100 hover:text-emerald-800"
+                                >
+                                  <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    className="h-5 w-5"
+                                    aria-hidden="true"
+                                  >
+                                    <path d="M12 3v12" />
+                                    <path d="m7 8 5-5 5 5" />
+                                    <path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" />
+                                  </svg>
+                                </button>
                               </div>
 
                               <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -1778,10 +2348,10 @@ export default function AdminPage() {
                                   Настроить
                                 </button>
                                 <button
-                                  onClick={() => handleShareGroup(group)}
-                                  className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 transition hover:bg-slate-50"
+                                  onClick={() => handleOpenExport(group)}
+                                  className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800"
                                 >
-                                  Поделиться
+                                  Экспорт
                                 </button>
                                 <button
                                   onClick={() => handleStartEditGroup(group)}
@@ -2094,6 +2664,124 @@ export default function AdminPage() {
                 ))}
               </div>
             </section>
+          )}
+
+          {exportingGroup && (
+            <div className="fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center sm:p-6">
+              <button
+                type="button"
+                aria-label="Закрыть окно экспорта"
+                onClick={handleCloseExport}
+                className="absolute inset-0 bg-slate-950/55 backdrop-blur-sm"
+              />
+
+              <section
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="export-dialog-title"
+                className="relative w-full max-w-md rounded-3xl border border-white/80 bg-white p-5 shadow-2xl sm:p-6"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.14em] text-emerald-600">
+                      Экспорт данных
+                    </p>
+                    <h2
+                      id="export-dialog-title"
+                      className="mt-1 text-2xl font-black text-slate-950"
+                    >
+                      Скачать Excel
+                    </h2>
+                    <p className="mt-2 text-sm leading-6 text-slate-600">
+                      Группа: <strong>{exportingGroup.name}</strong>
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleCloseExport}
+                    disabled={isExporting}
+                    aria-label="Закрыть"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-xl text-slate-500 transition hover:bg-slate-200 hover:text-slate-900 disabled:opacity-50"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="mt-6 space-y-2">
+                  {[
+                    {
+                      value: "week" as ExportPeriod,
+                      title: "Текущая неделя",
+                      description: "От начала выбранной недели до воскресенья.",
+                    },
+                    {
+                      value: "month" as ExportPeriod,
+                      title: "Текущий месяц",
+                      description: "Все отметки текущего календарного месяца.",
+                    },
+                    {
+                      value: "all" as ExportPeriod,
+                      title: "Вся история",
+                      description: "Все сохранённые отметки группы.",
+                    },
+                  ].map((option) => {
+                    const isSelected = exportPeriod === option.value;
+
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setExportPeriod(option.value)}
+                        disabled={isExporting}
+                        className={`w-full rounded-2xl border p-4 text-left transition ${
+                          isSelected
+                            ? "border-emerald-400 bg-emerald-50 ring-2 ring-emerald-100"
+                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        <span className="flex items-center gap-3">
+                          <span
+                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                              isSelected
+                                ? "border-emerald-500 bg-emerald-500"
+                                : "border-slate-300 bg-white"
+                            }`}
+                          >
+                            {isSelected && (
+                              <span className="h-2 w-2 rounded-full bg-white" />
+                            )}
+                          </span>
+
+                          <span>
+                            <span className="block font-black text-slate-950">
+                              {option.title}
+                            </span>
+                            <span className="mt-1 block text-xs leading-5 text-slate-500">
+                              {option.description}
+                            </span>
+                          </span>
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-xs leading-5 text-slate-600">
+                  В файле будут листы «Сводка», «Отметки» и «Настройки».
+                  PIN-коды и данные авторизации не выгружаются.
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void handleExportToExcel()}
+                  disabled={isExporting}
+                  className="mt-5 w-full rounded-2xl bg-slate-950 px-4 py-4 font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+                >
+                  {isExporting ? "Формируем файл..." : "Скачать Excel"}
+                </button>
+              </section>
+            </div>
           )}
 
           <footer className="py-7 text-center text-xs font-medium text-slate-400">
