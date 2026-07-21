@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type WheelEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
@@ -37,8 +37,6 @@ type Task = {
 };
 
 type ManagementTab = "members" | "tasks";
-type ExportPeriod = "week" | "month" | "all";
-
 type ExportEntry = {
   member_id: string;
   task_id: string;
@@ -61,7 +59,18 @@ export default function AdminPage() {
   const [managementTab, setManagementTab] = useState<ManagementTab>("members");
 
   const [exportingGroup, setExportingGroup] = useState<Group | null>(null);
-  const [exportPeriod, setExportPeriod] = useState<ExportPeriod>("week");
+  const [exportStartDate, setExportStartDate] = useState("");
+  const [exportEndDate, setExportEndDate] = useState("");
+  const [exportAvailableStartDate, setExportAvailableStartDate] = useState("");
+  const [exportSelectionStep, setExportSelectionStep] = useState<
+    "start" | "end"
+  >("start");
+  const [isExportCalendarOpen, setIsExportCalendarOpen] = useState(false);
+  const [exportCalendarMonth, setExportCalendarMonth] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1, 12);
+  });
+  const exportCalendarWheelAt = useRef(0);
   const [isExporting, setIsExporting] = useState(false);
 
   const [newGroupName, setNewGroupName] = useState("");
@@ -464,57 +473,32 @@ export default function AdminPage() {
     return `${day}.${month}.${year}`;
   }
 
-  function getWeekStartDateForDate(date: Date, weekStartDay: number) {
-    const normalizedDate = new Date(date);
-    normalizedDate.setHours(12, 0, 0, 0);
-
-    const diff = (normalizedDate.getDay() - weekStartDay + 7) % 7;
-    const weekStart = new Date(normalizedDate);
-    weekStart.setDate(normalizedDate.getDate() - diff);
-
-    return weekStart;
-  }
-
-  function getExportRange(group: Group, period: ExportPeriod) {
+  function getDefaultExportRange() {
     const today = new Date();
     today.setHours(12, 0, 0, 0);
 
-    if (period === "week") {
-      const startDate = getWeekStartDateForDate(today, group.week_start_day);
-      const endDate = new Date(startDate);
-      endDate.setDate(startDate.getDate() + 6);
-
-      return {
-        startDateKey: toDateKey(startDate),
-        endDateKey: toDateKey(endDate),
-        label: `${formatDateKey(toDateKey(startDate))}–${formatDateKey(
-          toDateKey(endDate),
-        )}`,
-      };
-    }
-
-    if (period === "month") {
-      const startDate = new Date(today.getFullYear(), today.getMonth(), 1, 12);
-      const endDate = new Date(
-        today.getFullYear(),
-        today.getMonth() + 1,
-        0,
-        12,
-      );
-
-      return {
-        startDateKey: toDateKey(startDate),
-        endDateKey: toDateKey(endDate),
-        label: `${formatDateKey(toDateKey(startDate))}–${formatDateKey(
-          toDateKey(endDate),
-        )}`,
-      };
-    }
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1, 12);
 
     return {
-      startDateKey: null,
-      endDateKey: null,
-      label: "Вся история",
+      startDateKey: toDateKey(monthStart),
+      endDateKey: toDateKey(today),
+    };
+  }
+
+  function getFullAvailableExportRange(group: Group) {
+    const todayKey = toDateKey(new Date());
+    const fallbackStartDateKey = group.created_at
+      ? toDateKey(new Date(group.created_at))
+      : todayKey;
+    const resolvedStartDateKey =
+      exportingGroup?.id === group.id && exportAvailableStartDate
+        ? exportAvailableStartDate
+        : fallbackStartDateKey;
+
+    return {
+      startDateKey:
+        resolvedStartDateKey <= todayKey ? resolvedStartDateKey : todayKey,
+      endDateKey: todayKey,
     };
   }
 
@@ -528,6 +512,120 @@ export default function AdminPage() {
         (endDate.getTime() - startDate.getTime()) / millisecondsPerDay,
       ) + 1
     );
+  }
+
+  function getMonthIndex(date: Date) {
+    return date.getFullYear() * 12 + date.getMonth();
+  }
+
+  function getMinExportCalendarMonth(group: Group) {
+    const availableStartDate = parseDateKey(
+      getFullAvailableExportRange(group).startDateKey,
+    );
+
+    return new Date(availableStartDate.getFullYear(), 0, 1, 12);
+  }
+
+  function getExportCalendarDays(monthDate: Date) {
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const firstDay = new Date(year, month, 1, 12);
+    const mondayOffset = (firstDay.getDay() + 6) % 7;
+    const daysInMonth = new Date(year, month + 1, 0, 12).getDate();
+
+    return Array.from({ length: 42 }, (_, index) => {
+      const dayNumber = index - mondayOffset + 1;
+
+      if (dayNumber < 1 || dayNumber > daysInMonth) {
+        return null;
+      }
+
+      const date = new Date(year, month, dayNumber, 12);
+
+      return {
+        date,
+        dateKey: toDateKey(date),
+        dayNumber,
+      };
+    });
+  }
+
+  function formatCalendarMonth(date: Date) {
+    const label = date.toLocaleDateString("ru-RU", {
+      month: "long",
+      year: "numeric",
+    });
+
+    return label.charAt(0).toUpperCase() + label.slice(1);
+  }
+
+  function openExportCalendar(field: "start" | "end") {
+    const resolvedField = field === "end" && !exportStartDate ? "start" : field;
+    const fallbackDateKey = exportAvailableStartDate || toDateKey(new Date());
+    const selectedDateKey =
+      resolvedField === "start"
+        ? exportStartDate || fallbackDateKey
+        : exportEndDate || exportStartDate || fallbackDateKey;
+    const selectedDate = parseDateKey(selectedDateKey);
+
+    setExportSelectionStep(resolvedField);
+    setExportCalendarMonth(
+      new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1, 12),
+    );
+    setIsExportCalendarOpen(true);
+  }
+
+  function changeExportCalendarMonth(monthOffset: number) {
+    if (!exportingGroup) return;
+
+    const nextMonth = new Date(
+      exportCalendarMonth.getFullYear(),
+      exportCalendarMonth.getMonth() + monthOffset,
+      1,
+      12,
+    );
+    const minMonth = getMinExportCalendarMonth(exportingGroup);
+    const maxMonth = new Date();
+
+    if (getMonthIndex(nextMonth) < getMonthIndex(minMonth)) return;
+    if (getMonthIndex(nextMonth) > getMonthIndex(maxMonth)) return;
+
+    setExportCalendarMonth(nextMonth);
+  }
+
+  function handleExportCalendarWheel(event: WheelEvent<HTMLDivElement>) {
+    event.preventDefault();
+
+    if (Math.abs(event.deltaY) < 8) return;
+
+    const now = Date.now();
+
+    if (now - exportCalendarWheelAt.current < 240) return;
+
+    exportCalendarWheelAt.current = now;
+    changeExportCalendarMonth(event.deltaY > 0 ? 1 : -1);
+  }
+
+  function handleSelectExportDate(dateKey: string) {
+    if (!exportingGroup || isExporting) return;
+
+    const availableRange = getFullAvailableExportRange(exportingGroup);
+
+    if (dateKey < availableRange.startDateKey) return;
+    if (dateKey > availableRange.endDateKey) return;
+
+    if (exportSelectionStep === "start" || !exportStartDate) {
+      setExportStartDate(dateKey);
+      setExportEndDate("");
+      setExportSelectionStep("end");
+      return;
+    }
+
+    if (dateKey < exportStartDate) return;
+
+    setExportEndDate(dateKey);
+    setExportSelectionStep("start");
+    setIsExportCalendarOpen(false);
   }
 
   function sanitizeFileName(value: string) {
@@ -582,17 +680,67 @@ export default function AdminPage() {
     return result;
   }
 
-  function handleOpenExport(group: Group) {
-    setExportingGroup(group);
-    setExportPeriod("week");
+  async function handleOpenExport(group: Group) {
     setMessage("");
+
+    const todayKey = toDateKey(new Date());
+    let availableStartDateKey = group.created_at
+      ? toDateKey(new Date(group.created_at))
+      : todayKey;
+
+    const { data: firstEntry, error: firstEntryError } = await supabase
+      .from("entries")
+      .select("entry_date")
+      .eq("group_id", group.id)
+      .order("entry_date", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (!firstEntryError && firstEntry?.entry_date) {
+      availableStartDateKey = firstEntry.entry_date;
+    }
+
+    if (availableStartDateKey > todayKey) {
+      availableStartDateKey = todayKey;
+    }
+
+    const defaultRange = getDefaultExportRange();
+    const defaultMonth = parseDateKey(defaultRange.endDateKey);
+    const safeStartDateKey =
+      defaultRange.startDateKey < availableStartDateKey
+        ? availableStartDateKey
+        : defaultRange.startDateKey;
+
+    setExportAvailableStartDate(availableStartDateKey);
+    setExportingGroup(group);
+    setExportStartDate(safeStartDateKey);
+    setExportEndDate(defaultRange.endDateKey);
+    setExportSelectionStep("start");
+    setIsExportCalendarOpen(false);
+    setExportCalendarMonth(
+      new Date(defaultMonth.getFullYear(), defaultMonth.getMonth(), 1, 12),
+    );
+  }
+
+  function handleSelectFullExportRange() {
+    if (!exportingGroup) return;
+
+    const fullRange = getFullAvailableExportRange(exportingGroup);
+    setExportStartDate(fullRange.startDateKey);
+    setExportEndDate(fullRange.endDateKey);
+    setExportSelectionStep("start");
+    setIsExportCalendarOpen(false);
   }
 
   function handleCloseExport() {
     if (isExporting) return;
 
     setExportingGroup(null);
-    setExportPeriod("week");
+    setExportStartDate("");
+    setExportEndDate("");
+    setExportAvailableStartDate("");
+    setExportSelectionStep("start");
+    setIsExportCalendarOpen(false);
   }
 
   async function handleExportToExcel() {
@@ -602,7 +750,22 @@ export default function AdminPage() {
     setMessage("");
 
     try {
-      const range = getExportRange(exportingGroup, exportPeriod);
+      if (!exportStartDate || !exportEndDate) {
+        setMessage("Выберите начальную и конечную дату экспорта.");
+        return;
+      }
+
+      if (exportStartDate > exportEndDate) {
+        setMessage("Начальная дата не может быть позже конечной.");
+        return;
+      }
+
+      const todayKey = toDateKey(new Date());
+
+      if (exportEndDate > todayKey) {
+        setMessage("Конечная дата не может быть позже сегодняшнего дня.");
+        return;
+      }
 
       const [membersResult, tasksResult, exportEntries] = await Promise.all([
         supabase
@@ -617,11 +780,7 @@ export default function AdminPage() {
           )
           .eq("group_id", exportingGroup.id)
           .order("display_order", { ascending: true }),
-        loadEntriesForExport(
-          exportingGroup.id,
-          range.startDateKey,
-          range.endDateKey,
-        ),
+        loadEntriesForExport(exportingGroup.id, exportStartDate, exportEndDate),
       ]);
 
       if (membersResult.error) {
@@ -635,33 +794,11 @@ export default function AdminPage() {
       const exportMembers = (membersResult.data || []) as Member[];
       const exportTasks = (tasksResult.data || []) as Task[];
 
-      let actualStartDateKey = range.startDateKey;
-      let actualEndDateKey = range.endDateKey;
-
-      if (exportPeriod === "all") {
-        const entryDates = exportEntries
-          .map((entry) => entry.entry_date)
-          .filter(Boolean)
-          .sort();
-
-        actualStartDateKey =
-          entryDates[0] ||
-          (exportingGroup.created_at
-            ? toDateKey(new Date(exportingGroup.created_at))
-            : toDateKey(new Date()));
-        actualEndDateKey = entryDates.at(-1) || toDateKey(new Date());
-      }
-
-      if (!actualStartDateKey || !actualEndDateKey) {
-        throw new Error("Не удалось определить период выгрузки.");
-      }
-
-      const periodLabel =
-        exportPeriod === "all"
-          ? `${formatDateKey(actualStartDateKey)}–${formatDateKey(
-              actualEndDateKey,
-            )}`
-          : range.label;
+      const actualStartDateKey = exportStartDate;
+      const actualEndDateKey = exportEndDate;
+      const periodLabel = `${formatDateKey(
+        actualStartDateKey,
+      )}–${formatDateKey(actualEndDateKey)}`;
 
       const periodDays = Math.max(
         1,
@@ -969,7 +1106,9 @@ export default function AdminPage() {
       URL.revokeObjectURL(fileUrl);
 
       setExportingGroup(null);
-      setExportPeriod("week");
+      setExportStartDate("");
+      setExportEndDate("");
+      setIsExportCalendarOpen(false);
       setMessage("Excel-файл сформирован и скачан.");
     } catch (error) {
       console.error(error);
@@ -2348,7 +2487,7 @@ export default function AdminPage() {
                                   Настроить
                                 </button>
                                 <button
-                                  onClick={() => handleOpenExport(group)}
+                                  onClick={() => void handleOpenExport(group)}
                                   className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-xs font-bold text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800"
                                 >
                                   Экспорт
@@ -2708,63 +2847,247 @@ export default function AdminPage() {
                   </button>
                 </div>
 
-                <div className="mt-6 space-y-2">
-                  {[
-                    {
-                      value: "week" as ExportPeriod,
-                      title: "Текущая неделя",
-                      description: "От начала выбранной недели до воскресенья.",
-                    },
-                    {
-                      value: "month" as ExportPeriod,
-                      title: "Текущий месяц",
-                      description: "Все отметки текущего календарного месяца.",
-                    },
-                    {
-                      value: "all" as ExportPeriod,
-                      title: "Вся история",
-                      description: "Все сохранённые отметки группы.",
-                    },
-                  ].map((option) => {
-                    const isSelected = exportPeriod === option.value;
+                <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div>
+                    <p className="text-sm font-black text-slate-950">
+                      Период экспорта
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      Нажмите на поле даты и выберите начало и конец периода.
+                    </p>
+                  </div>
 
-                    return (
+                  <div className="relative mt-4">
+                    <div className="relative z-20 grid grid-cols-2 gap-3">
                       <button
-                        key={option.value}
                         type="button"
-                        onClick={() => setExportPeriod(option.value)}
+                        onClick={() => openExportCalendar("start")}
                         disabled={isExporting}
-                        className={`w-full rounded-2xl border p-4 text-left transition ${
-                          isSelected
+                        className={`flex min-h-20 items-center justify-between gap-3 rounded-2xl border p-3 text-left transition ${
+                          isExportCalendarOpen &&
+                          exportSelectionStep === "start"
                             ? "border-emerald-400 bg-emerald-50 ring-2 ring-emerald-100"
-                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
-                        }`}
+                            : "border-slate-200 bg-white hover:border-slate-300"
+                        } disabled:opacity-50`}
                       >
-                        <span className="flex items-center gap-3">
-                          <span
-                            className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
-                              isSelected
-                                ? "border-emerald-500 bg-emerald-500"
-                                : "border-slate-300 bg-white"
-                            }`}
-                          >
-                            {isSelected && (
-                              <span className="h-2 w-2 rounded-full bg-white" />
-                            )}
+                        <span>
+                          <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
+                            С даты
                           </span>
-
-                          <span>
-                            <span className="block font-black text-slate-950">
-                              {option.title}
-                            </span>
-                            <span className="mt-1 block text-xs leading-5 text-slate-500">
-                              {option.description}
-                            </span>
+                          <span className="mt-1 block text-sm font-black text-slate-950">
+                            {exportStartDate
+                              ? formatDateKey(exportStartDate)
+                              : "Выберите дату"}
                           </span>
                         </span>
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-5 w-5 shrink-0 text-slate-400"
+                          aria-hidden="true"
+                        >
+                          <rect x="3" y="5" width="18" height="16" rx="2" />
+                          <path d="M16 3v4M8 3v4M3 10h18" />
+                        </svg>
                       </button>
-                    );
-                  })}
+
+                      <button
+                        type="button"
+                        onClick={() => openExportCalendar("end")}
+                        disabled={isExporting}
+                        className={`flex min-h-20 items-center justify-between gap-3 rounded-2xl border p-3 text-left transition ${
+                          isExportCalendarOpen && exportSelectionStep === "end"
+                            ? "border-emerald-400 bg-emerald-50 ring-2 ring-emerald-100"
+                            : "border-slate-200 bg-white hover:border-slate-300"
+                        } disabled:opacity-50`}
+                      >
+                        <span>
+                          <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
+                            По дату
+                          </span>
+                          <span className="mt-1 block text-sm font-black text-slate-950">
+                            {exportEndDate
+                              ? formatDateKey(exportEndDate)
+                              : "Выберите дату"}
+                          </span>
+                        </span>
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="h-5 w-5 shrink-0 text-slate-400"
+                          aria-hidden="true"
+                        >
+                          <rect x="3" y="5" width="18" height="16" rx="2" />
+                          <path d="M16 3v4M8 3v4M3 10h18" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {isExportCalendarOpen && (
+                      <>
+                        <button
+                          type="button"
+                          aria-label="Закрыть календарь"
+                          onClick={() => setIsExportCalendarOpen(false)}
+                          className="fixed inset-0 z-10 cursor-default"
+                        />
+
+                        <div
+                          onWheel={handleExportCalendarWheel}
+                          className="absolute left-0 right-0 top-full z-30 mt-2 overscroll-contain rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <button
+                              type="button"
+                              aria-label="Предыдущий месяц"
+                              onClick={() => changeExportCalendarMonth(-1)}
+                              disabled={
+                                !exportingGroup ||
+                                getMonthIndex(exportCalendarMonth) <=
+                                  getMonthIndex(
+                                    getMinExportCalendarMonth(exportingGroup),
+                                  )
+                              }
+                              className="flex h-9 w-9 items-center justify-center rounded-xl text-xl font-bold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-25"
+                            >
+                              ‹
+                            </button>
+
+                            <div className="text-center">
+                              <p className="text-[11px] font-black uppercase tracking-[0.1em] text-emerald-600">
+                                {exportSelectionStep === "start"
+                                  ? "Выберите дату начала"
+                                  : "Выберите дату окончания"}
+                              </p>
+                              <p className="mt-0.5 text-sm font-black text-slate-950">
+                                {formatCalendarMonth(exportCalendarMonth)}
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              aria-label="Следующий месяц"
+                              onClick={() => changeExportCalendarMonth(1)}
+                              disabled={
+                                getMonthIndex(exportCalendarMonth) >=
+                                getMonthIndex(new Date())
+                              }
+                              className="flex h-9 w-9 items-center justify-center rounded-xl text-xl font-bold text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 disabled:cursor-not-allowed disabled:opacity-25"
+                            >
+                              ›
+                            </button>
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-7 gap-1">
+                            {["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map(
+                              (weekday) => (
+                                <div
+                                  key={weekday}
+                                  className="py-1 text-center text-[10px] font-black uppercase text-slate-400"
+                                >
+                                  {weekday}
+                                </div>
+                              ),
+                            )}
+
+                            {getExportCalendarDays(exportCalendarMonth).map(
+                              (calendarDay, index) => {
+                                if (!calendarDay) {
+                                  return (
+                                    <span
+                                      key={`empty-${index}`}
+                                      className="aspect-square"
+                                    />
+                                  );
+                                }
+
+                                const availableRange =
+                                  getFullAvailableExportRange(exportingGroup);
+                                const isBeforeSelectedStart =
+                                  exportSelectionStep === "end" &&
+                                  Boolean(exportStartDate) &&
+                                  calendarDay.dateKey < exportStartDate;
+                                const isDisabled =
+                                  calendarDay.dateKey <
+                                    availableRange.startDateKey ||
+                                  calendarDay.dateKey >
+                                    availableRange.endDateKey ||
+                                  isBeforeSelectedStart;
+                                const isStart =
+                                  calendarDay.dateKey === exportStartDate;
+                                const isEnd =
+                                  calendarDay.dateKey === exportEndDate;
+                                const isInsideRange =
+                                  Boolean(exportStartDate && exportEndDate) &&
+                                  calendarDay.dateKey > exportStartDate &&
+                                  calendarDay.dateKey < exportEndDate;
+                                const isToday =
+                                  calendarDay.dateKey === toDateKey(new Date());
+
+                                return (
+                                  <button
+                                    key={calendarDay.dateKey}
+                                    type="button"
+                                    onClick={() =>
+                                      handleSelectExportDate(
+                                        calendarDay.dateKey,
+                                      )
+                                    }
+                                    disabled={isDisabled || isExporting}
+                                    title={formatDateKey(calendarDay.dateKey)}
+                                    className={`aspect-square rounded-xl text-sm font-bold transition ${
+                                      isStart || isEnd
+                                        ? "bg-emerald-600 text-white shadow-sm"
+                                        : isInsideRange
+                                          ? "bg-emerald-100 text-emerald-900"
+                                          : isToday
+                                            ? "bg-slate-100 text-slate-950 ring-1 ring-emerald-400"
+                                            : "text-slate-700 hover:bg-slate-100"
+                                    } disabled:cursor-not-allowed disabled:text-slate-300 disabled:hover:bg-transparent`}
+                                  >
+                                    {calendarDay.dayNumber}
+                                  </button>
+                                );
+                              },
+                            )}
+                          </div>
+
+                          <p className="mt-3 border-t border-slate-100 pt-3 text-center text-[11px] font-bold text-slate-400">
+                            Колесо мыши или стрелки переключают месяцы
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <p className="mt-3 text-xs font-bold text-slate-500">
+                    Доступны данные с{" "}
+                    {formatDateKey(
+                      getFullAvailableExportRange(exportingGroup).startDateKey,
+                    )}{" "}
+                    по{" "}
+                    {formatDateKey(
+                      getFullAvailableExportRange(exportingGroup).endDateKey,
+                    )}
+                    .
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={handleSelectFullExportRange}
+                    disabled={isExporting}
+                    className="mt-4 text-left text-sm font-black text-emerald-700 transition hover:text-emerald-800 hover:underline disabled:opacity-50"
+                  >
+                    Выбрать весь доступный период
+                  </button>
                 </div>
 
                 <div className="mt-6 rounded-2xl bg-slate-50 p-4 text-xs leading-5 text-slate-600">
@@ -2775,7 +3098,7 @@ export default function AdminPage() {
                 <button
                   type="button"
                   onClick={() => void handleExportToExcel()}
-                  disabled={isExporting}
+                  disabled={isExporting || !exportStartDate || !exportEndDate}
                   className="mt-5 w-full rounded-2xl bg-slate-950 px-4 py-4 font-black text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-300"
                 >
                   {isExporting ? "Формируем файл..." : "Скачать Excel"}
